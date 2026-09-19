@@ -1,0 +1,9 @@
+#pragma once
+
+#include <QtCore/qglobal.h>
+
+#if defined(HUBSIGHT_PREFERENCES_LIBRARY)
+#define HUBSIGHT_PREFERENCES_EXPORT Q_DECL_EXPORT
+#else
+#define HUBSIGHT_PREFERENCES_EXPORT Q_DECL_IMPORT
+#endif

@@ -14,7 +14,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Typed account, camera-management, identity, integration, member, and system
   operations clients.
 - Multipart image upload and binary avatar upload helpers.
-- Full-catalog contract tests and open-source project governance documentation.
+- Full-catalog contract tests, opt-in real-backend smoke tests, an independent
+  Qt Core `HubSight::Preferences::PreferenceStore`, and open-source project
+  governance documentation.
 
 ### Changed
 
@@ -27,6 +29,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - Generic endpoint requests preserve API-key/JWT handling and do not place
   credentials in URLs or query strings.
+- Backend integration tests skip safely without credentials and document the
+  secret/environment boundary for CI.
 
 ## [0.1.0]
 

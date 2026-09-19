@@ -136,14 +136,12 @@ protected dual authentication:
 - recording metadata;
 - playback, download, and thumbnail URL action requests.
 
-The typed parsers accept the documented `data` envelope, flat objects, and the
-legacy backend's flat timeline array shape while retaining normalized `raw`
-objects. The SDK intentionally uses the catalog paths under
-`/api/admin/v1/archive`; the current sibling backend still exposes legacy
-routes such as `/archive/:id/stream`, so backend route parity is required before
-end-to-end use against that implementation. Native media playback, range
-seeking, thumbnail cache, and WebRTC/media integration are not part of this
-slice.
+The typed parsers accept the documented `data` envelope, flat objects, and
+legacy-compatible flat timeline array shapes while retaining normalized `raw`
+objects. The SDK uses the catalog paths under `/api/admin/v1/archive`. Backend
+route/schema parity can be verified with the opt-in integration target documented
+in `INTEGRATION_TESTING.md`. Native media playback, range seeking, thumbnail
+cache, and WebRTC/media integration are not part of this REST slice.
 
 ### Complete typed Admin REST resource coverage
 
@@ -155,10 +153,9 @@ request correlation, typed response DTOs, and domain-specific signals. `MemberCl
 supports JSON/presign flows plus multipart image and binary avatar payloads.
 
 The SDK uses the Admin action paths and current push-subscription resource from
-the catalog. The current sibling backend still exposes legacy routes such as
-`/notifications/read-all`, `/notifications/batch`, and
-`/notifications/:id/read`; those routes are intentionally not used by this
-client and require backend Admin route parity.
+the catalog. Legacy notification routes are intentionally not used. Run the
+opt-in backend integration suite to verify the deployed Admin notification and
+push-subscription routes against the catalog contract.
 
 ### Admin `.hscfg` v2 importer
 
@@ -240,7 +237,8 @@ security invalidation, typed live, archive, and notification REST slices,
 standard relay transport/domain/replay behavior, generic endpoint request
 routing, multipart upload, typed live/archive/notification behavior, and the
 maintenance response.
-A machine with Qt 6.6+ is required to configure and execute it. A full HTTP/2
-integration
-test additionally requires a TLS test server with ALPN support; the production
-path uses Qt's native negotiation rather than a separate direct/h2c mode.
+A machine with Qt 6.6+ is required to configure and execute it. The optional
+backend smoke suite is documented in `INTEGRATION_TESTING.md` and requires a
+provisioned gateway/API key. A full HTTP/2 integration test additionally requires
+a TLS test server with ALPN support; the production path uses Qt's native
+negotiation rather than a separate direct/h2c mode.

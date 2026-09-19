@@ -21,6 +21,8 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 option(HUBSIGHT_ADMIN_BUILD_TESTS "Build HubSight Admin SDK tests" ${BUILD_TESTING})
+option(HUBSIGHT_ADMIN_BUILD_INTEGRATION_TESTS
+       "Build opt-in tests against a configured HubSight Admin backend" OFF)
 option(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT
        "Enable native .hscfg Admin importer when dependencies are available" ON)
 option(HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE
@@ -68,6 +70,16 @@ if(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT)
             "libzip, and libyaml, or set HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=OFF.")
     endif()
 endif()
+
+set(HUBSIGHT_PREFERENCES_PUBLIC_HEADERS
+    include/hubsight/preferences.h
+    include/hubsight/preferences/preferences_export.h
+    include/hubsight/preferences/preference_store.h
+)
+
+set(HUBSIGHT_PREFERENCES_SOURCES
+    src/preferences/preference_store.cpp
+)
 
 set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/admin_application_client.h
@@ -156,6 +168,27 @@ set(HUBSIGHT_ADMIN_SOURCES
     src/webrtc/webrtc_client.cpp
 )
 
+add_library(hubsight-preferences SHARED
+    ${HUBSIGHT_PREFERENCES_PUBLIC_HEADERS}
+    ${HUBSIGHT_PREFERENCES_SOURCES}
+)
+
+add_library(HubSight::Preferences ALIAS hubsight-preferences)
+
+target_compile_features(hubsight-preferences PUBLIC cxx_std_20)
+target_compile_definitions(hubsight-preferences PRIVATE HUBSIGHT_PREFERENCES_LIBRARY)
+target_link_libraries(hubsight-preferences PUBLIC Qt6::Core)
+target_include_directories(hubsight-preferences
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+set_target_properties(hubsight-preferences PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    EXPORT_NAME Preferences
+)
+
 add_library(hubsight-admin-sdk SHARED
     ${HUBSIGHT_ADMIN_PUBLIC_HEADERS}
     ${HUBSIGHT_ADMIN_SOURCES}
@@ -212,6 +245,12 @@ set_target_properties(hubsight-admin-sdk PROPERTIES
     EXPORT_NAME AdminSdk
 )
 
+install(TARGETS hubsight-preferences
+    EXPORT HubSightPreferencesTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
 install(TARGETS hubsight-admin-sdk
     EXPORT HubSightAdminSdkTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -236,14 +275,38 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/HubSightAdminSdkConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HubSightAdminSdk
 )
+
+configure_package_config_file(
+    cmake/HubSightPreferencesConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/HubSightPreferencesConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HubSightPreferences
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/HubSightPreferencesConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/HubSightPreferencesConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/HubSightPreferencesConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HubSightPreferences
+)
 install(EXPORT HubSightAdminSdkTargets
     FILE HubSightAdminSdkTargets.cmake
     NAMESPACE HubSight::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HubSightAdminSdk
 )
+install(EXPORT HubSightPreferencesTargets
+    FILE HubSightPreferencesTargets.cmake
+    NAMESPACE HubSight::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HubSightPreferences
+)
+
+if(HUBSIGHT_ADMIN_BUILD_TESTS OR HUBSIGHT_ADMIN_BUILD_INTEGRATION_TESTS)
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+endif()
 
 if(HUBSIGHT_ADMIN_BUILD_TESTS)
-    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(hubsight-admin-sdk-tests
         tests/test_admin_sdk.cpp
     )
@@ -254,4 +317,28 @@ if(HUBSIGHT_ADMIN_BUILD_TESTS)
         Qt6::WebSockets
     )
     add_test(NAME hubsight-admin-sdk-tests COMMAND hubsight-admin-sdk-tests)
+
+    add_executable(hubsight-preferences-tests
+        tests/preferences/test_preference_store.cpp
+    )
+    target_link_libraries(hubsight-preferences-tests PRIVATE
+        HubSight::Preferences
+        Qt6::Test
+    )
+    add_test(NAME hubsight-preferences-tests
+             COMMAND hubsight-preferences-tests)
+endif()
+
+if(HUBSIGHT_ADMIN_BUILD_INTEGRATION_TESTS)
+    add_executable(hubsight-admin-sdk-integration-tests
+        tests/integration/test_admin_backend.cpp
+    )
+    target_link_libraries(hubsight-admin-sdk-integration-tests PRIVATE
+        HubSight::AdminSdk
+        Qt6::Test
+        Qt6::Network
+        Qt6::WebSockets
+    )
+    add_test(NAME hubsight-admin-sdk-integration-tests
+             COMMAND hubsight-admin-sdk-integration-tests)
 endif()

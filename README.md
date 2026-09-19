@@ -73,7 +73,8 @@ ctest --test-dir build --output-on-failure
 
 | Option                                         |            Default | Description                                                                                            |
 | ---------------------------------------------- | -----------------: | ------------------------------------------------------------------------------------------------------ |
-| `HUBSIGHT_ADMIN_BUILD_TESTS`                   | `${BUILD_TESTING}` | Build the Qt Test suite.                                                                               |
+| `HUBSIGHT_ADMIN_BUILD_TESTS`                   | `${BUILD_TESTING}` | Build the local Qt contract test suite.                                                                |
+| `HUBSIGHT_ADMIN_BUILD_INTEGRATION_TESTS`       |              `OFF` | Build opt-in tests against a configured real Admin backend.                                            |
 | `HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT`           |               `ON` | Enable the native `.hscfg` importer when OpenSSL Crypto, libargon2, libzip, and libyaml are available. |
 | `HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE` |               `ON` | Enable Windows Credential Manager, macOS Keychain, or Linux Secret Service/libsecret integration.      |
 
@@ -115,6 +116,30 @@ After changing Qt kits or architectures, delete and recreate `build/` so
 the `clangd` language server or reload the workspace. The generated compilation
 database is intentionally ignored by Git because it contains machine-specific
 absolute paths.
+
+## Qt application preferences
+
+`PreferenceStore` is a standalone Qt Core module for application preferences. It
+is not part of `AdminApplicationClient`, does not use the Admin API, and does not
+perform network or internet access. Link the independent target:
+
+```cmake
+find_package(HubSightPreferences CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE HubSight::Preferences)
+```
+
+Use it with JSON dot notation, drafts, transactions, change events, and optional
+atomic JSON-file persistence:
+
+```cpp
+#include <hubsight/preferences.h>
+
+HubSight::Preferences::PreferenceStore _preferences;
+_preferences.set("foo.bar", QStringLiteral("value"));
+const QJsonValue value = _preferences.get("foo.bar");
+```
+
+See [`docs/PREFERENCE_STORE.md`](docs/PREFERENCE_STORE.md) for the complete API.
 
 ## Recommended application API
 
@@ -564,6 +589,10 @@ require a separate direct/h2c mode.
   WebRTC adapter boundary.
 - [`docs/BACKEND_IMPLEMENTATION_PROMPT.md`](docs/BACKEND_IMPLEMENTATION_PROMPT.md)
   — backend compatibility and integration checklist.
+- [`docs/INTEGRATION_TESTING.md`](docs/INTEGRATION_TESTING.md) — opt-in smoke tests
+  against a real backend.
+- [`docs/PREFERENCE_STORE.md`](docs/PREFERENCE_STORE.md) — JSON application
+  preferences, drafts, transactions, events, and persistence.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — development workflow and pull requests.
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community participation standards.
 - [`SECURITY.md`](SECURITY.md) — private vulnerability reporting policy.

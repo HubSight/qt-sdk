@@ -17,16 +17,17 @@ Security vulnerabilities must not be reported in a public issue. Follow
 ## Development requirements
 
 - Qt 6.6 or newer:
-  - Qt Core;
-  - Qt Network;
-  - Qt WebSockets;
-  - Qt Test for the test suite.
+    - Qt Core;
+    - Qt Network;
+    - Qt WebSockets;
+    - Qt Test for the test suite.
 - C++20 compiler.
 - CMake 3.21 or newer.
 - A supported desktop host: Windows, macOS, or Linux.
 
 See [`docs/BUILD_CROSS_PLATFORM.md`](docs/BUILD_CROSS_PLATFORM.md) for the
-supported architecture matrix.
+supported architecture matrix. For tests against a real backend, see
+[`docs/INTEGRATION_TESTING.md`](docs/INTEGRATION_TESTING.md).
 
 ## Configure, build, and test
 
