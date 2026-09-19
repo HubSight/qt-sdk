@@ -43,6 +43,23 @@ QJsonArray cameraArray(const QJsonObject &object) {
   return items.isArray() ? items.toArray() : QJsonArray{};
 }
 
+AdminError withLiveContext(AdminError error, const QString &sessionId,
+                           const QString &cameraId) {
+  QJsonObject details = error.details.toObject();
+  if (!error.details.isUndefined() && !error.details.isNull() &&
+      !error.details.isObject()) {
+    details.insert(QStringLiteral("server_details"), error.details);
+  }
+  if (!sessionId.isEmpty()) {
+    details.insert(QStringLiteral("session_id"), sessionId);
+  }
+  if (!cameraId.isEmpty()) {
+    details.insert(QStringLiteral("camera_id"), cameraId);
+  }
+  error.details = details;
+  return error;
+}
+
 QJsonObject responseObject(const QByteArray &body, bool *valid) {
   if (body.trimmed().isEmpty()) {
     if (valid) {
@@ -267,7 +284,9 @@ void LiveClient::sendRequest(PendingKind kind, const TransportRequest &request,
                              const QString &cameraId) {
   const quint64 requestId = m_transport->send(request);
   if (requestId == 0) {
-    sendError(m_transport->configurationError(request.operation));
+    sendError(
+        withLiveContext(m_transport->configurationError(request.operation),
+                        sessionId, cameraId));
     return;
   }
   m_pending.insert(requestId, {kind, sessionId, cameraId});
@@ -283,14 +302,18 @@ void LiveClient::handleResponse(quint64 requestId,
   m_pending.erase(pending);
 
   if (!response.isHttpSuccess()) {
-    sendError(Internal::parseError(m_transport, response, response.operation));
+    sendError(withLiveContext(
+        Internal::parseError(m_transport, response, response.operation),
+        pendingRequest.sessionId, pendingRequest.cameraId));
     return;
   }
 
   bool validJson = false;
   const QJsonObject object = responseObject(response.body, &validJson);
   if (!validJson) {
-    sendError(Internal::invalidJson(response.operation));
+    sendError(withLiveContext(Internal::invalidJson(response.operation),
+                              pendingRequest.sessionId,
+                              pendingRequest.cameraId));
     return;
   }
 
@@ -344,8 +367,10 @@ void LiveClient::handleResponse(quint64 requestId,
       session.cameraId = pendingRequest.cameraId;
     }
     if (!session.isValid()) {
-      sendError(Internal::invalidModel(response.operation,
-                                       QStringLiteral("live session")));
+      sendError(withLiveContext(
+          Internal::invalidModel(response.operation,
+                                 QStringLiteral("live session")),
+          pendingRequest.sessionId, pendingRequest.cameraId));
       return;
     }
     emit sessionNegotiated(session);
@@ -363,8 +388,10 @@ void LiveClient::handleResponse(quint64 requestId,
       session.sessionId = pendingRequest.sessionId;
     }
     if (!session.isValid()) {
-      sendError(Internal::invalidModel(response.operation,
-                                       QStringLiteral("live session")));
+      sendError(withLiveContext(
+          Internal::invalidModel(response.operation,
+                                 QStringLiteral("live session")),
+          pendingRequest.sessionId, pendingRequest.cameraId));
       return;
     }
     emit sessionProfileChanged(session);

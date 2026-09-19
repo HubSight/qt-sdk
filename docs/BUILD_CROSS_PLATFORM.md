@@ -375,17 +375,24 @@ file dist/macos-arm64/lib/libhubsight-admin-sdk.dylib
 On Windows, use Visual Studio's `dumpbin /headers` or another PE inspection tool
 to verify `x64` versus `ARM64`.
 
-## Recommended CI matrix
+## CI matrix
 
-Use one build job per target ABI rather than trying to reuse a host Qt install:
+The repository includes [`.github/workflows/build.yml`](../.github/workflows/build.yml)
+with one build job per target ABI rather than reusing a host Qt install:
 
 ```text
-windows-2026-x64       -> VS2026/MSVC v145, Qt Windows x64
-windows-2026-arm64     -> VS2026/MSVC v145, Qt Windows ARM64
-ubuntu-x64              -> Linux x86_64 Qt/toolchain
-ubuntu-arm64           -> Linux aarch64 Qt/toolchain or ARM64 runner
-macos-arm64             -> Apple Clang, arm64 Qt
+windows-2022-x64       -> MSVC, Qt Windows x64, CTest
+windows-2022-arm64     -> MSVC ARM64 cross-build, Qt Windows ARM64
+ubuntu-24.04-x64       -> Linux x86_64 Qt/toolchain, CTest
+ubuntu-24.04-arm64     -> native Linux aarch64 runner, CTest
+macos-14-arm64         -> Apple Clang, arm64 Qt, CTest
 ```
+
+The Windows ARM64 job is a cross-build because GitHub-hosted Windows ARM64
+availability is not assumed. The Linux ARM64 job uses a native ARM64 runner;
+if that runner is unavailable for an organization, replace it with a matching
+self-hosted runner or disable only that job rather than executing its binary on
+x86_64.
 
 For native jobs:
 

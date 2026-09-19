@@ -6,6 +6,10 @@ project(HubSightAdminSdk
     LANGUAGES CXX
 )
 
+# Keep a compilation database available for clangd-based editors such as Zed.
+# This is local/tooling metadata and does not change the SDK build outputs.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(GNUInstallDirs)
 include(CTest)
 

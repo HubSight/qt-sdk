@@ -74,6 +74,36 @@ Desktop secure storage is also detected automatically. Linux support requires
 `libsecret-1`. When the OS vault is unavailable, the default application facade
 fails closed; it never falls back to plaintext storage.
 
+## Zed / clangd configuration
+
+The repository includes `.clangd` and `.zed/settings.json` for C++/Qt editing in
+Zed. CMake is configured to generate `build/compile_commands.json`, which gives
+clangd the real Qt include paths, C++20 flags, Qt module defines, AUTOMOC
+include directory, and target architecture.
+
+Open the `qt-sdk` directory itself as the Zed workspace root, then configure the
+local build once:
+
+```sh
+cmake -S . -B build \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+On macOS Apple Silicon with Homebrew Qt, use the Qt prefix if CMake cannot find
+Qt automatically:
+
+```sh
+cmake -S . -B build \
+  -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+After changing Qt kits or architectures, delete and recreate `build/` so
+`compile_commands.json` is regenerated for the correct target. In Zed, restart
+the `clangd` language server or reload the workspace. The generated compilation
+database is intentionally ignored by Git because it contains machine-specific
+absolute paths.
+
 ## Recommended application API
 
 Use `AdminApplicationClient` for normal application and UI code. It provides:
@@ -82,6 +112,7 @@ Use `AdminApplicationClient` for normal application and UI code. It provides:
 - automatic JWT refresh based on `expires_in`;
 - optional 2FA without exposing the pre-auth token;
 - typed system, camera, live, archive, and notification clients;
+- high-level live-session orchestration with automatic heartbeat/release;
 - normative Standard JSON realtime through `realtime()`;
 - bounded, sanitized diagnostics;
 - no `QNetworkReply`, `AuthManager`, `SocketIoClient`, `WebRtcClient`, or native
@@ -155,7 +186,35 @@ client.cameras();
 client.live();
 client.archive();
 client.notifications();
+
+// Live REST negotiation, heartbeat, profile, QoE, and release are owned by
+// the facade. The app only observes typed session signals.
+QObject::connect(&client, &AdminApplicationClient::liveSessionStarted,
+                 [](LiveSession session) {
+                     qInfo() << "Live signaling ready for" << session.cameraId;
+                 });
+QObject::connect(&client, &AdminApplicationClient::liveError,
+                 [](QString sessionId, AdminError error) {
+                     qWarning() << "Live error" << sessionId << error.serverCode;
+                 });
+client.startLive(QStringLiteral("camera-1"), QStringLiteral("balanced"));
+// client.stopLive(sessionId) when the view is closed.
 ```
+
+`liveSessionStarted` means the Admin live session has been negotiated and its
+signaling data is available. If the media transport is WebRTC and no native
+backend adapter is installed, the same session emits `liveError` with
+`WEBRTC_BACKEND_UNAVAILABLE`; this is an explicit capability diagnostic, not a
+false media-connected state. `AdminApplicationClient` automatically sends
+heartbeats for managed sessions and releases them on stop, sign-out, or client
+reconfiguration. Reconfiguration/logout waits for release acknowledgements up
+to a bounded five-second teardown deadline; if the deadline expires, the SDK
+closes local state and records `LIVE_TEARDOWN_TIMEOUT` instead of blocking the
+UI thread. If a reconfiguration or `.hscfg` import is queued behind live
+teardown, its synchronous `bool` return means “accepted/queued”; observe
+`configurationApplied(bool)` or `hscfgImportCompleted(bool)` for the final
+result. `clearConfiguration()` emits `configurationCleared()` after its
+teardown has completed.
 
 `AdminClient` remains available as an advanced/core API for integrations that
 need direct access to lower-level clients. Its native transport and
@@ -318,13 +377,13 @@ compatibility layer must not be pointed at `/relay/admin/v1`.
 The current typed clients are exposed through `AdminClient` and the application
 facade:
 
-| Client               | Current coverage                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `SystemClient`       | Status, capabilities, and settings.                                                                                                     |
-| `CameraClient`       | Cursor/limit camera list and detail/status reads.                                                                                       |
-| `LiveClient`         | Capabilities, camera discovery/status, WebRTC session negotiation, heartbeat, release, profile changes, stats, and QoE.                 |
-| `ArchiveClient`      | Timeline, available days, recording metadata, playback/download/thumbnail URL actions.                                                  |
-| `NotificationClient` | Listing/filtering, detail, read-state mutations, deletion actions, test dispatch, push configuration, and push-subscription management. |
+| Client               | Current coverage                                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SystemClient`       | Status, capabilities, and settings.                                                                                                                                         |
+| `CameraClient`       | Cursor/limit camera list and detail/status reads.                                                                                                                           |
+| `LiveClient`         | Capabilities, camera discovery/status, WebRTC session negotiation, heartbeat, release, profile changes, stats, and QoE. The facade adds managed live-session orchestration. |
+| `ArchiveClient`      | Timeline, available days, recording metadata, playback/download/thumbnail URL actions.                                                                                      |
+| `NotificationClient` | Listing/filtering, detail, read-state mutations, deletion actions, test dispatch, push configuration, and push-subscription management.                                     |
 
 Responses use typed DTOs and emit domain-specific signals. Archive playback,
 thumbnail caching, range seeking, and media rendering are not included in the

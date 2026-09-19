@@ -1,0 +1,108 @@
+name: Build HubSight Admin SDK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-amd64
+            os: windows-2022
+            qt_arch: win64_msvc2022_64
+            cmake_generator: visual-studio
+            cmake_arch: x64
+            run_tests: true
+          - name: windows-arm64
+            os: windows-2022
+            qt_arch: win64_msvc2022_arm64
+            cmake_generator: visual-studio
+            cmake_arch: ARM64
+            run_tests: false
+          - name: linux-amd64
+            os: ubuntu-24.04
+            qt_arch: linux_gcc_64
+            cmake_generator: unix
+            run_tests: true
+          - name: linux-arm64
+            # GitHub-hosted public ARM64 runner. This is intentionally native so
+            # CTest never attempts to execute an ARM64 binary on x86_64.
+            os: ubuntu-24.04-arm
+            qt_arch: linux_gcc_arm64
+            cmake_generator: unix
+            run_tests: true
+          - name: macos-arm64
+            os: macos-14
+            qt_arch: clang_64
+            cmake_generator: unix
+            run_tests: true
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          arch: ${{ matrix.qt_arch }}
+          modules: qtwebsockets
+          cache: true
+
+      - name: Install Linux build prerequisites
+        if: startsWith(matrix.os, 'ubuntu-')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev
+
+      - name: Configure with Visual Studio
+        if: matrix.cmake_generator == 'visual-studio'
+        shell: pwsh
+        run: >-
+          cmake -S . -B build
+          -G "Visual Studio 17 2022"
+          -A "${{ matrix.cmake_arch }}"
+          -DHUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=OFF
+          -DHUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE=OFF
+          -DHUBSIGHT_ADMIN_BUILD_TESTS=${{ matrix.run_tests && 'ON' || 'OFF' }}
+
+      - name: Configure on Unix
+        if: matrix.cmake_generator == 'unix'
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=OFF \
+            -DHUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE=OFF \
+            -DHUBSIGHT_ADMIN_BUILD_TESTS=${{ matrix.run_tests && 'ON' || 'OFF' }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Run tests
+        if: matrix.run_tests
+        shell: bash
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Install SDK artifact
+        shell: bash
+        run: cmake --install build --config Release --prefix dist/${{ matrix.name }}
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hubsight-admin-sdk-${{ matrix.name }}
+          path: dist/${{ matrix.name }}
+          if-no-files-found: error

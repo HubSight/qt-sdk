@@ -1,0 +1,11 @@
+# clangd configuration for the default local CMake build.
+# CMakeLists.txt enables CMAKE_EXPORT_COMPILE_COMMANDS, so Qt include paths,
+# AUTOMOC defines, C++20, and platform linker defines come from the real target.
+CompileFlags:
+  CompilationDatabase: build
+
+Index:
+  Background: Build
+
+Diagnostics:
+  UnusedIncludes: None

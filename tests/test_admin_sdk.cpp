@@ -707,6 +707,63 @@ private slots:
     QVERIFY(!app.isAuthenticated());
   }
 
+  void applicationFacadeOrchestratesLiveSessions() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    auto storage = std::make_shared<InMemorySecureStorage>();
+    AdminApplicationClient app(storage);
+    app.setAutoConnectRealtime(false);
+    app.setLiveHeartbeatInterval(1000);
+    QVERIFY(app.configure(server.url(), QStringLiteral("admin-desktop-key")));
+
+    QSignalSpy authenticatedSpy(&app, &AdminApplicationClient::authenticated);
+    app.signIn(QStringLiteral("admin"), QStringLiteral("password"));
+    QVERIFY(authenticatedSpy.wait(2000));
+
+    QSignalSpy startingSpy(&app, &AdminApplicationClient::liveStarting);
+    QSignalSpy startedSpy(&app, &AdminApplicationClient::liveSessionStarted);
+    QSignalSpy changedSpy(&app, &AdminApplicationClient::liveSessionChanged);
+    QSignalSpy liveErrorSpy(&app, &AdminApplicationClient::liveError);
+    QSignalSpy heartbeatSpy(app.live(), &LiveClient::sessionHeartbeatReceived);
+    QSignalSpy stoppedSpy(&app, &AdminApplicationClient::liveSessionStopped);
+
+    app.startLive(QStringLiteral("cam_1"), QStringLiteral("balanced"));
+    QVERIFY(startedSpy.wait(2000));
+    QCOMPARE(startingSpy.count(), 1);
+    QCOMPARE(startedSpy.at(0).at(0).value<LiveSession>().sessionId,
+             QStringLiteral("live_1"));
+    QCOMPARE(app.liveSessionIds(), QStringList{QStringLiteral("live_1")});
+    QVERIFY(liveErrorSpy.count() >= 1);
+    QCOMPARE(liveErrorSpy.at(0).at(0).toString(), QStringLiteral("live_1"));
+    QCOMPARE(liveErrorSpy.at(0).at(1).value<AdminError>().serverCode,
+             QStringLiteral("WEBRTC_BACKEND_UNAVAILABLE"));
+
+    QVERIFY(heartbeatSpy.wait(2500));
+    QVERIFY(heartbeatSpy.count() >= 1);
+
+    app.changeLiveProfile(QStringLiteral("live_1"), QStringLiteral("low"));
+    QVERIFY(changedSpy.wait(2000));
+    QCOMPARE(changedSpy.at(0).at(0).value<LiveSession>().sessionId,
+             QStringLiteral("live_1"));
+
+    app.stopLive(QStringLiteral("live_1"));
+    QVERIFY(stoppedSpy.wait(2000));
+    QVERIFY(app.liveSessionIds().isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        server.request().contains(QByteArrayLiteral("/live/sessions:release")),
+        2000);
+
+    const int startedBeforeSecondSession = startedSpy.count();
+    app.startLive(QStringLiteral("cam_1"), QStringLiteral("balanced"));
+    QTRY_VERIFY_WITH_TIMEOUT(startedSpy.count() > startedBeforeSecondSession,
+                             2000);
+    QSignalSpy signedOutSpy(&app, &AdminApplicationClient::signedOut);
+    app.signOut();
+    QVERIFY(signedOutSpy.wait(3000));
+    QVERIFY(app.liveSessionIds().isEmpty());
+  }
+
   void socketIoBaseSupportsHandshakeEventsAndAck() {
     TestSocketIoServer server;
     QVERIFY(server.listen());

@@ -16,6 +16,10 @@ WebSocket and network primitives, but it does not provide an
 - `WebRtcClient` owns peer connections by the live API's `session_id`.
 - `AdminClient::webrtc()` exposes the registry without coupling it to the
   Socket.IO base or the standard JSON `/relay/admin/v1` client.
+- `AdminApplicationClient` provides the normal app-facing live orchestration:
+  `startLive`, `stopLive`, profile/QoE operations, managed heartbeats, and
+  release on lifecycle changes. It does not expose the registry or native
+  backend to ordinary app code.
 
 Example setup:
 
@@ -53,9 +57,25 @@ media connection.
 ## Phase 2 boundary
 
 `AdminClient::live()` obtains `session_id`, ICE server configuration, and
-negotiation payloads from `/api/admin/v1/live/*`. A separate standard JSON
-WebSocket relay client will carry relay/replay events at `/relay/admin/v1`.
-Neither path should use Socket.IO packets. The WebRTC adapter is responsible
-for media, ICE gathering, DTLS/SRTP, and platform decode/render integration;
-the SDK foundation is responsible for typed state and safe handoff between
-those layers.
+negotiation payloads from `/api/admin/v1/live/*`. `AdminApplicationClient` adds
+session ownership and heartbeat/release orchestration on top of that typed
+client. `liveSessionStarted` means signaling/session negotiation completed; it
+does not mean that a media track is rendering. On logout or reconfiguration,
+release acknowledgements are awaited up to a bounded five-second deadline;
+late/stale signaling responses are ignored and released rather than promoted
+back into the application session registry.
+
+If the negotiated transport is WebRTC and no adapter is installed, the facade
+emits `liveError` with `WEBRTC_BACKEND_UNAVAILABLE` and a WebRTC diagnostic.
+This is intentional: the SDK never reports a false media-connected state. The
+error is non-retryable until an adapter is installed; applications can still
+retain the typed signaling session for an approved integration. A future
+adapter integration can attach the typed session signaling to `WebRtcClient`
+without changing the normal application's JWT, HTTP, or Socket.IO
+responsibilities.
+
+A separate standard JSON WebSocket relay client carries relay/replay events at
+`/relay/admin/v1`. Neither path should use Socket.IO packets. The WebRTC adapter
+is responsible for media, ICE gathering, DTLS/SRTP, and platform decode/render
+integration; the SDK foundation is responsible for typed state and safe handoff
+between those layers.

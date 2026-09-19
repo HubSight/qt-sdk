@@ -2,14 +2,19 @@
 
 #include "admin_client.h"
 #include "admin_export.h"
+#include "resources/live_types.h"
 #include "sdk_diagnostics.h"
 
+#include <QHash>
 #include <QJsonObject>
 #include <QObject>
+#include <QSet>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVector>
 
+#include <functional>
 #include <memory>
 
 namespace HubSight::Admin {
@@ -56,6 +61,22 @@ public:
   AdminState state() const;
   AdminUser currentUser() const;
 
+  // High-level live session orchestration. These methods own the negotiate,
+  // heartbeat, profile, QoE, and release lifecycle. A LiveSession exposes
+  // signaling data for an optional media adapter, but applications do not need
+  // to construct QNetworkReply, Socket.IO packets, or native WebRTC objects.
+  void startLive(const QString &cameraId, const QString &profile = {},
+                 const QJsonObject &options = {});
+  void stopLive(const QString &sessionId);
+  void stopAllLive();
+  void changeLiveProfile(const QString &sessionId, const QString &profile,
+                         const QJsonObject &options = {});
+  void reportLiveQoe(const QString &sessionId, const QJsonObject &qoe);
+  LiveSession liveSession(const QString &sessionId) const;
+  QStringList liveSessionIds() const;
+  void setLiveHeartbeatInterval(int intervalMs);
+  int liveHeartbeatInterval() const;
+
   // Standard JSON relay domain only. Applications never need to select or
   // configure Socket.IO. Realtime connection is automatic after sign-in by
   // default, and can be controlled explicitly when required by a host app.
@@ -95,6 +116,15 @@ signals:
                         HubSight::Admin::HttpProtocol protocol);
   void diagnosticOccurred(HubSight::Admin::SdkDiagnostic diagnostic);
 
+  void liveStarting(QString cameraId);
+  void liveSessionStarted(HubSight::Admin::LiveSession session);
+  void liveSessionChanged(HubSight::Admin::LiveSession session);
+  void liveSessionStopped(QString sessionId);
+  void liveError(QString sessionId, HubSight::Admin::AdminError error);
+  void configurationApplied(bool success);
+  void hscfgImportCompleted(bool success);
+  void configurationCleared();
+
 private:
   void initialize(SecureStoragePtr storage);
   void record(DiagnosticSeverity severity, DiagnosticSource source,
@@ -107,12 +137,45 @@ private:
   void handleTwoFactorRequired(const QString &preAuthToken);
   void handleAuthenticated(const TokenSet &tokens, const AdminUser &user);
   void scheduleTokenRefresh(const TokenSet &tokens);
+  bool configureNow(const QUrl &gatewayUrl, const QString &apiKey);
+  bool importHscfgNow(const QByteArray &data, const QString &pin);
+  bool importHscfgFileNow(const QString &path, const QString &pin);
+  void clearConfigurationNow();
+  void signOutNow();
+  bool beginLiveTeardown(std::function<void()> continuation);
+  void finishLiveTeardown();
+  void handleLiveSessionNegotiated(const LiveSession &session);
+  void handleLiveSessionProfileChanged(const LiveSession &session);
+  void handleLiveSessionReleased(const QString &sessionId);
+  void handleLiveHeartbeat(const QString &sessionId);
+  void handleLiveError(const AdminError &error);
+  void sendLiveError(const QString &sessionId, const AdminError &error,
+                     bool recordDiagnostic = true,
+                     DiagnosticSource source = DiagnosticSource::Http);
+  void reportWebRtcBackendUnavailable(const LiveSession &session);
+  void heartbeatLiveSessions();
+  void clearLiveSessions(bool emitStopped);
+  void releaseLiveSessions();
+  void requestLiveRelease(const QString &sessionId);
+  void retryLiveRelease(const QString &sessionId);
 
   std::unique_ptr<AdminClient> m_client;
   QTimer m_refreshTimer;
+  QTimer m_liveHeartbeatTimer;
+  QTimer m_liveTeardownTimer;
+  QHash<QString, LiveSession> m_liveSessions;
+  QSet<QString> m_liveStartingCameras;
+  QSet<QString> m_liveCanceledStartingCameras;
+  QSet<QString> m_liveHeartbeatInFlight;
+  QSet<QString> m_liveReleaseInFlight;
+  QSet<QString> m_liveReleasePending;
+  QSet<QString> m_liveReleaseRetryScheduled;
+  QHash<QString, int> m_liveReleaseAttempts;
+  std::function<void()> m_pendingLiveTeardown;
   QString m_preAuthToken;
   QVector<SdkDiagnostic> m_diagnostics;
   int m_diagnosticHistoryLimit = 256;
+  int m_liveHeartbeatIntervalMs = 15000;
   bool m_diagnosticLoggingEnabled = false;
   bool m_autoConnectRealtime = true;
 };
