@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.2.0] - 2026-09-19
+
 ### Added
 
 - Generic request execution for all HTTP entries in the 136-entry Admin API
@@ -14,15 +18,19 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Typed account, camera-management, identity, integration, member, and system
   operations clients.
 - Multipart image upload and binary avatar upload helpers.
-- Full-catalog contract tests, opt-in real-backend smoke tests, an independent
-  Qt Core `HubSight::Preferences::PreferenceStore`, and open-source project
-  governance documentation.
+- Full-catalog contract tests and opt-in real-backend smoke tests.
+- Independent Qt Core `HubSight::Preferences::PreferenceStore` module with
+  dot-notation JSON access, drafts, transactions, events, and atomic persistence.
+- Open-source contribution, security, support, issue-template, and release
+  metadata.
 
 ### Changed
 
 - `AdminClient::api()` now performs real HTTP requests instead of returning a
   not-implemented placeholder error.
-- Documentation now distinguishes the complete Admin REST surface from optional
+- `PreferenceStore` is shipped as the independent `HubSight::Preferences`
+  target and is not coupled to Admin API, HTTP, WebSocket, or internet access.
+- Documentation distinguishes the complete Admin REST surface from optional
   native WebRTC media and Socket.IO compatibility features.
 
 ### Security
@@ -38,5 +46,6 @@ The initial desktop SDK foundation release. See [`docs/PHASE1.md`](docs/PHASE1.m
 for the delivered REST, authentication, realtime, diagnostics, `.hscfg`, and
 WebRTC foundation work.
 
-[Unreleased]: https://github.com/HubSight/qt-sdk/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/HubSight/qt-sdk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/HubSight/qt-sdk/releases/tag/v0.2.0
 [0.1.0]: https://github.com/HubSight/qt-sdk/releases/tag/v0.1.0
