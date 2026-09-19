@@ -8,6 +8,7 @@
 #include "resources/camera_client.h"
 #include "resources/system_client.h"
 #include "secure_storage.h"
+#include "webrtc/webrtc_client.h"
 
 #include <QObject>
 #include <QUrl>
@@ -50,6 +51,10 @@ public:
   // connected automatically; configure the path/namespace and call connect.
   SocketIoClient *realtime() const;
 
+  // Backend-neutral WebRTC session registry. Attach a native/libdatachannel
+  // adapter to each peer connection before creating an offer or answer.
+  WebRtcClient *webrtc() const;
+
   // Complete endpoint registry/facade. Calls for deferred endpoints emit
   // SDK_ENDPOINT_NOT_IMPLEMENTED until their phase lands.
   AdminEndpointClient *api() const;
@@ -75,6 +80,7 @@ private:
   std::unique_ptr<SystemClient> m_system;
   std::unique_ptr<CameraClient> m_cameras;
   std::unique_ptr<SocketIoClient> m_realtime;
+  std::unique_ptr<WebRtcClient> m_webrtc;
   std::unique_ptr<AdminEndpointClient> m_api;
   AdminState m_state = AdminState::Unconfigured;
 };

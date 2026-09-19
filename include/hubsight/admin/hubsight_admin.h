@@ -9,3 +9,6 @@
 #include "resources/camera_client.h"
 #include "resources/system_client.h"
 #include "secure_storage.h"
+#include "webrtc/webrtc_client.h"
+#include "webrtc/webrtc_peer_connection.h"
+#include "webrtc/webrtc_types.h"

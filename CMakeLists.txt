@@ -32,6 +32,9 @@ set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/resources/camera_client.h
     include/hubsight/admin/resources/system_client.h
     include/hubsight/admin/realtime/socket_io_client.h
+    include/hubsight/admin/webrtc/webrtc_types.h
+    include/hubsight/admin/webrtc/webrtc_peer_connection.h
+    include/hubsight/admin/webrtc/webrtc_client.h
 )
 
 set(HUBSIGHT_ADMIN_SOURCES
@@ -47,6 +50,9 @@ set(HUBSIGHT_ADMIN_SOURCES
     src/resources/camera_client.cpp
     src/resources/system_client.cpp
     src/realtime/socket_io_client.cpp
+    src/webrtc/webrtc_types.cpp
+    src/webrtc/webrtc_peer_connection.cpp
+    src/webrtc/webrtc_client.cpp
 )
 
 add_library(hubsight-admin-sdk SHARED

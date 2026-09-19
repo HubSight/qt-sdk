@@ -362,6 +362,53 @@ private slots:
     client.realtime()->disconnectFromServer();
   }
 
+  void webrtcFoundationValidatesDtosAndTracksSessions() {
+    WebRtcConfiguration configuration;
+    WebRtcIceServer iceServer;
+    iceServer.urls = {QStringLiteral("stun:stun.example.com"),
+                      QStringLiteral("turns:turn.example.com?transport=tcp")};
+    iceServer.username = QStringLiteral("turn-user");
+    iceServer.credential = QStringLiteral("turn-secret");
+    configuration.iceServers.append(iceServer);
+    configuration.iceTransportPolicy = WebRtcIceTransportPolicy::Relay;
+
+    QString reason;
+    QVERIFY(configuration.isValid(&reason));
+    const WebRtcConfiguration roundTrip =
+        WebRtcConfiguration::fromJson(configuration.toJson());
+    QCOMPARE(roundTrip.iceServers.size(), 1);
+    QCOMPARE(roundTrip.iceServers.at(0).username, QStringLiteral("turn-user"));
+    QCOMPARE(roundTrip.iceTransportPolicy, WebRtcIceTransportPolicy::Relay);
+
+    WebRtcSessionDescription offer;
+    offer.type = WebRtcSdpType::Offer;
+    offer.sdp = QStringLiteral("v=0\\r\\n");
+    QCOMPARE(WebRtcSessionDescription::fromJson(offer.toJson()).sdp, offer.sdp);
+    QVERIFY(!WebRtcSessionDescription::fromJson(
+                 QJsonObject{{QStringLiteral("type"), QStringLiteral("bogus")},
+                             {QStringLiteral("sdp"), QStringLiteral("v=0")}})
+                 .isValid(&reason));
+
+    WebRtcIceServer unsafe;
+    unsafe.urls = {QStringLiteral("turn://user:password@turn.example.com")};
+    QVERIFY(!unsafe.isValid(&reason));
+
+    WebRtcClient client;
+    QSignalSpy errorSpy(&client, &WebRtcClient::errorOccurred);
+    WebRtcPeerConnection *peer = client.createPeerConnection(
+        QStringLiteral("live-session-1"), configuration);
+    QVERIFY(peer);
+    QCOMPARE(client.sessionIds(),
+             QStringList{QStringLiteral("live-session-1")});
+    QVERIFY(!peer->hasBackend());
+    QVERIFY(!peer->createOffer());
+    QCOMPARE(errorSpy.count(), 1);
+    QCOMPARE(errorSpy.at(0).at(0).value<WebRtcError>().code,
+             WebRtcErrorCode::BackendUnavailable);
+    QVERIFY(client.closePeerConnection(QStringLiteral("live-session-1")));
+    QVERIFY(client.sessionIds().isEmpty());
+  }
+
   void rejectsNonLoopbackHttpGateway() {
     AdminClient client;
     QSignalSpy errorSpy(&client, &AdminClient::errorOccurred);

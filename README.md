@@ -25,10 +25,12 @@ HubSight Admin API plan:
   the SDK does not force direct HTTP/2/h2c and applications do not need to
   select a protocol for ordinary requests.
 
-Realtime domain clients/event replay, WebRTC, FFmpeg, QML views, thumbnails,
-archive playback, CRUD resources, and `.hscfg` cryptography are intentionally
-deferred to later phases. The Socket.IO transport foundation is included in
-this phase. See [`docs/PHASE1.md`](docs/PHASE1.md).
+Realtime domain clients/event replay, the WebRTC media engine, FFmpeg, QML
+views, thumbnails, archive playback, CRUD resources, and `.hscfg` cryptography
+are intentionally deferred to later phases. The Socket.IO transport and
+backend-neutral WebRTC foundations are included so Phase 2 can add live
+signaling without an API redesign. See [`docs/PHASE1.md`](docs/PHASE1.md) and
+[`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).
 
 ## Build
 
@@ -95,3 +97,14 @@ attachments yet, and is not connected automatically. When accessed through
 WebSocket handshake headers; an active realtime connection is re-established
 when the access token rotates. Deployments using a custom relay path can call
 `setPath()` before `connectToServer()`.
+
+## WebRTC foundation
+
+`AdminClient::webrtc()` exposes a session registry for the Phase 2 live API.
+The foundation includes typed ICE server/configuration, SDP, ICE candidate,
+track, and connection-state models plus a `WebRtcPeerConnectionBackend`
+adapter interface. It does not bundle libdatachannel or another media engine;
+applications attach an approved backend before calling `createOffer()` or
+`createAnswer()`. Standard JSON signaling remains separate from Socket.IO and
+must not use Socket.IO packet framing. See
+[`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).

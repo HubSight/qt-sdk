@@ -98,6 +98,7 @@ void AdminClient::initialize(SecureStoragePtr storage) {
   m_cameras =
       std::unique_ptr<CameraClient>(new CameraClient(m_transport.get(), this));
   m_realtime = std::unique_ptr<SocketIoClient>(new SocketIoClient(this));
+  m_webrtc = std::unique_ptr<WebRtcClient>(new WebRtcClient(this));
   m_api = std::unique_ptr<AdminEndpointClient>(
       new AdminEndpointClient(m_transport.get(), this));
 
@@ -109,6 +110,7 @@ void AdminClient::initialize(SecureStoragePtr storage) {
               m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
               m_realtime->disconnectFromServer(
                   QStringLiteral("Admin authentication session ended"));
+              m_webrtc->closeAll();
             }
           });
   connect(m_auth.get(), &AuthManager::errorOccurred, this,
@@ -154,6 +156,7 @@ bool AdminClient::setGatewayUrl(const QUrl &gatewayUrl) {
   }
 
   m_auth->invalidateSession();
+  m_webrtc->closeAll();
   m_realtime->disconnectFromServer(QStringLiteral("Admin gateway changed"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
   m_realtime->setBaseUrl(normalized);
@@ -167,6 +170,7 @@ QUrl AdminClient::gatewayUrl() const { return m_transport->gatewayUrl(); }
 
 void AdminClient::setApiKey(const QString &apiKey) {
   m_auth->invalidateSession();
+  m_webrtc->closeAll();
   m_realtime->disconnectFromServer(QStringLiteral("Admin API key changed"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
   m_realtime->setHeader(QByteArrayLiteral("X-API-Key"),
@@ -181,6 +185,7 @@ bool AdminClient::isConfigured() const { return m_transport->isConfigured(); }
 
 void AdminClient::setSecureStorage(SecureStoragePtr storage) {
   m_auth->invalidateSession();
+  m_webrtc->closeAll();
   m_realtime->disconnectFromServer(
       QStringLiteral("Admin secure storage changed"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
@@ -199,6 +204,8 @@ SystemClient *AdminClient::system() const { return m_system.get(); }
 CameraClient *AdminClient::cameras() const { return m_cameras.get(); }
 
 SocketIoClient *AdminClient::realtime() const { return m_realtime.get(); }
+
+WebRtcClient *AdminClient::webrtc() const { return m_webrtc.get(); }
 
 AdminEndpointClient *AdminClient::api() const { return m_api.get(); }
 

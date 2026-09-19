@@ -90,6 +90,16 @@ fallback, binary attachments, event replay, and domain-specific realtime clients
 are intentionally outside this base layer. The client is not connected
 automatically.
 
+### WebRTC foundation
+
+The SDK now includes a backend-neutral WebRTC foundation for Phase 2 live
+sessions. `WebRtcConfiguration`, SDP, ICE candidate, track, and state DTOs are
+JSON-serializable; `WebRtcPeerConnectionBackend` is the adapter contract for a
+future libdatachannel/native engine; and `AdminClient::webrtc()` manages peer
+connections by `session_id`. No media engine is bundled, and an adapter is
+required before offer/answer or ICE operations can run. Details are in
+[`WEBRTC_FOUNDATION.md`](WEBRTC_FOUNDATION.md).
+
 ### Read-only resources
 
 `SystemClient` currently covers `status`, `capabilities`, and `settings`.
@@ -101,7 +111,8 @@ finalized across the Admin API.
 ## Intentionally deferred
 
 - domain-specific realtime clients on `/relay/admin/v1` and event replay;
-- WebRTC/libdatachannel, FFmpeg, hardware decoding, and live matrix;
+- WebRTC media-engine integration/libdatachannel, FFmpeg, hardware decoding,
+  and live matrix;
 - asynchronous thumbnail cache and archive playback;
 - camera mutation, PTZ, discovery, members, notifications, access governance;
 - passkey/WebAuthn login options and verification;
