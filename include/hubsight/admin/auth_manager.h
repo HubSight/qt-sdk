@@ -34,6 +34,7 @@ public:
                        const QString &recoveryCode = {},
                        const QJsonObject &deviceInfo = {});
   void refresh();
+  void restoreSession();
   void logout();
   void fetchCurrentUser();
 
@@ -66,14 +67,15 @@ private:
               QObject *parent = nullptr);
 
   void setSecureStorage(SecureStoragePtr storage);
-  void invalidateSession();
+  void invalidateSession(bool clearPersistedToken = true);
   void handleResponse(PendingKind kind, const QByteArray &body, int statusCode,
                       const QString &requestIdHeader, int retryAfterSeconds,
                       int networkErrorCode, bool timedOut,
                       const QString &networkErrorText);
   void setState(AdminState state);
   void emitError(const AdminError &error);
-  void clearLocalSession(AdminState nextState = AdminState::Unauthenticated);
+  void clearLocalSession(AdminState nextState = AdminState::Unauthenticated,
+                         bool clearPersistedToken = true);
   void completeTokenResponse(const QJsonObject &json, PendingKind kind,
                              const QString &requestId);
 

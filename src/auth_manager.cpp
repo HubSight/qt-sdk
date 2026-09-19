@@ -25,6 +25,24 @@ QByteArray jsonBody(const QJsonObject &object) {
   return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
+QString secureStorageDetail(const SecureStoragePtr &storage) {
+  if (!storage) {
+    return {};
+  }
+  return storage->lastError().trimmed().left(512);
+}
+
+QString secureStorageFailureMessage(const QString &action,
+                                    const SecureStoragePtr &storage) {
+  const QString detail = secureStorageDetail(storage);
+  if (detail.isEmpty()) {
+    return QStringLiteral("Unable to %1 the Admin refresh token securely.")
+        .arg(action);
+  }
+  return QStringLiteral("Unable to %1 the Admin refresh token securely: %2")
+      .arg(action, detail);
+}
+
 } // namespace
 
 AuthManager::AuthManager(AdminTransport *transport, SecureStoragePtr storage,
@@ -67,7 +85,9 @@ void AuthManager::setSecureStorage(SecureStoragePtr storage) {
       storage ? std::move(storage) : std::make_shared<InMemorySecureStorage>();
 }
 
-void AuthManager::invalidateSession() { clearLocalSession(); }
+void AuthManager::invalidateSession(bool clearPersistedToken) {
+  clearLocalSession(AdminState::Unauthenticated, clearPersistedToken);
+}
 
 void AuthManager::setState(AdminState state) {
   if (m_state == state) {
@@ -169,6 +189,30 @@ void AuthManager::verifyTwoFactor(const QString &preAuthToken,
   m_pending.insert(requestId, {PendingKind::VerifyTwoFactor, m_generation});
 }
 
+void AuthManager::restoreSession() {
+  if (!m_transport->isConfigured()) {
+    emitError(m_transport->configurationError(QStringLiteral("auth.restore")));
+    return;
+  }
+  if (isAuthenticated()) {
+    return;
+  }
+  const auto stored = m_storage->read(QString::fromLatin1(kRefreshTokenKey));
+  if (!stored || stored->isEmpty()) {
+    const QString storageDetail = secureStorageDetail(m_storage);
+    if (!storageDetail.isEmpty()) {
+      emitError(localError(
+          ErrorCategory::Configuration,
+          QStringLiteral("SECURE_STORAGE_READ_FAILED"),
+          secureStorageFailureMessage(QStringLiteral("read"), m_storage),
+          QStringLiteral("auth.restore")));
+    }
+    setState(AdminState::Unauthenticated);
+    return;
+  }
+  refresh();
+}
+
 void AuthManager::refresh() {
   if (m_refreshInFlight) {
     return;
@@ -179,9 +223,15 @@ void AuthManager::refresh() {
   }
   const auto stored = m_storage->read(QString::fromLatin1(kRefreshTokenKey));
   if (!stored || stored->isEmpty()) {
+    const QString storageDetail = secureStorageDetail(m_storage);
     const AdminError error = localError(
-        ErrorCategory::Authentication, QStringLiteral("REFRESH_TOKEN_REQUIRED"),
-        QStringLiteral("No Admin refresh token is available."),
+        storageDetail.isEmpty() ? ErrorCategory::Authentication
+                                : ErrorCategory::Configuration,
+        storageDetail.isEmpty() ? QStringLiteral("REFRESH_TOKEN_REQUIRED")
+                                : QStringLiteral("SECURE_STORAGE_READ_FAILED"),
+        storageDetail.isEmpty()
+            ? QStringLiteral("No Admin refresh token is available.")
+            : secureStorageFailureMessage(QStringLiteral("read"), m_storage),
         QStringLiteral("auth.refresh"));
     clearLocalSession(AdminState::Revoked);
     emitError(error);
@@ -250,11 +300,14 @@ void AuthManager::fetchCurrentUser() {
   m_pending.insert(requestId, {PendingKind::CurrentUser, m_generation});
 }
 
-void AuthManager::clearLocalSession(AdminState nextState) {
+void AuthManager::clearLocalSession(AdminState nextState,
+                                    bool clearPersistedToken) {
   ++m_generation;
   m_accessToken.clear();
   m_transport->setAccessToken({});
-  m_storage->remove(QString::fromLatin1(kRefreshTokenKey));
+  if (clearPersistedToken) {
+    m_storage->remove(QString::fromLatin1(kRefreshTokenKey));
+  }
   const bool hadUser = m_currentUser.isValid();
   m_currentUser = {};
   if (hadUser) {
@@ -288,7 +341,7 @@ void AuthManager::completeTokenResponse(const QJsonObject &json,
     const AdminError error = localError(
         ErrorCategory::Configuration,
         QStringLiteral("SECURE_STORAGE_WRITE_FAILED"),
-        QStringLiteral("Unable to persist the Admin refresh token securely."),
+        secureStorageFailureMessage(QStringLiteral("persist"), m_storage),
         operation);
     clearLocalSession(AdminState::Revoked);
     emitError(error);

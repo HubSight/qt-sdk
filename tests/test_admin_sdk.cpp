@@ -10,6 +10,7 @@
 #include <QTest>
 #include <QTimeZone>
 #include <QTimer>
+#include <QUuid>
 #include <QWebSocket>
 #include <QWebSocketServer>
 
@@ -414,6 +415,33 @@ private:
   int m_connectionCount = 0;
 };
 
+class UnavailableSecureStorage final : public SecureStorage {
+public:
+  std::optional<QByteArray> read(const QString &) const override {
+    m_lastError = QStringLiteral("Test credential vault is unavailable.");
+    return std::nullopt;
+  }
+
+  bool write(const QString &, const QByteArray &) override {
+    m_lastError = QStringLiteral("Test credential vault is unavailable.");
+    return false;
+  }
+
+  bool remove(const QString &) override {
+    m_lastError = QStringLiteral("Test credential vault is unavailable.");
+    return false;
+  }
+
+  QString backendName() const override {
+    return QStringLiteral("unavailable-test-vault");
+  }
+
+  QString lastError() const override { return m_lastError; }
+
+private:
+  mutable QString m_lastError;
+};
+
 class AdminSdkTest final : public QObject {
   Q_OBJECT
 
@@ -438,6 +466,9 @@ private slots:
     qRegisterMetaType<RealtimeEvent>();
     qRegisterMetaType<RelayEvent>();
     qRegisterMetaType<RelayError>();
+    qRegisterMetaType<SdkDiagnostic>();
+    qRegisterMetaType<DiagnosticSeverity>();
+    qRegisterMetaType<DiagnosticSource>();
     qRegisterMetaType<SocketIoError>();
   }
 
@@ -490,6 +521,48 @@ private slots:
     QVERIFY(!request.contains("token="));
   }
 
+  void desktopSecureStorageRoundTripsWithoutPlaintextFallback() {
+    const QString service =
+        QStringLiteral("com.hubsight.admin.test.%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    DesktopSecureStorage storage(service);
+    const QString key = QStringLiteral("refresh-token");
+    const QByteArray secret = QByteArrayLiteral("unit-secret-refresh-token");
+
+    QCOMPARE(storage.service(), service);
+    QCOMPARE(storage.backendName(),
+             DesktopSecureStorage::platformBackendName());
+
+    if (!DesktopSecureStorage::isSupported()) {
+      QVERIFY(!storage.write(key, secret));
+      QVERIFY(!storage.lastError().isEmpty());
+      QVERIFY(!storage.lastError().contains(QString::fromUtf8(secret)));
+      QVERIFY(!storage.read(key).has_value());
+      QVERIFY(!storage.remove(key));
+      return;
+    }
+
+    if (!storage.write(key, QByteArray{})) {
+      QVERIFY(!storage.lastError().isEmpty());
+      QVERIFY(!storage.lastError().contains(QString::fromUtf8(secret)));
+      QSKIP("The desktop credential vault is not available in this test "
+            "runtime.");
+    }
+    const auto empty = storage.read(key);
+    QVERIFY(empty.has_value());
+    QVERIFY(empty->isEmpty());
+
+    QVERIFY(storage.write(key, secret));
+    const auto stored = storage.read(key);
+    QVERIFY(stored.has_value());
+    QCOMPARE(*stored, secret);
+    QVERIFY(!storage.lastError().contains(QString::fromUtf8(secret)));
+
+    QVERIFY(storage.remove(key));
+    QVERIFY(!storage.read(key).has_value());
+    QVERIFY(storage.remove(key));
+  }
+
   void protectedRequestUsesBearerAndRotatesRefreshToken() {
     TestHttpServer server;
     QVERIFY(server.listen());
@@ -527,6 +600,111 @@ private slots:
     QVERIFY(request.contains("Authorization: Bearer access-token-2"));
     QVERIFY(!request.contains("?api_key="));
     QVERIFY(!request.contains("?token="));
+  }
+
+  void restoresSessionFromSharedRefreshStorage() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    auto storage = std::make_shared<InMemorySecureStorage>();
+    AdminClient firstClient(storage);
+    QVERIFY(firstClient.setGatewayUrl(server.url()));
+    firstClient.setApiKey(QStringLiteral("admin-desktop-key"));
+    QSignalSpy loginSpy(firstClient.auth(), &AuthManager::loginSucceeded);
+    firstClient.auth()->login(QStringLiteral("admin"),
+                              QStringLiteral("password"));
+    QVERIFY(loginSpy.wait(2000));
+
+    server.resetRequest();
+    AdminClient restoredClient(storage);
+    QSignalSpy refreshSpy(restoredClient.auth(), &AuthManager::tokenRefreshed);
+    QVERIFY(restoredClient.setGatewayUrl(server.url()));
+    restoredClient.setApiKey(QStringLiteral("admin-desktop-key"));
+    restoredClient.auth()->restoreSession();
+    QVERIFY(refreshSpy.wait(2000));
+
+    QVERIFY(restoredClient.auth()->isAuthenticated());
+    QVERIFY(server.request().startsWith(
+        "POST /api/admin/v1/auth/refresh HTTP/1.1"));
+    QVERIFY(server.request().contains("refresh-token"));
+  }
+
+  void secureStorageFailureFailsClosedAndRemainsDebuggable() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    auto storage = std::make_shared<UnavailableSecureStorage>();
+    AdminClient client(storage);
+    QVERIFY(client.setGatewayUrl(server.url()));
+    client.setApiKey(QStringLiteral("admin-desktop-key"));
+
+    QSignalSpy errorSpy(client.auth(), &AuthManager::errorOccurred);
+    client.auth()->login(QStringLiteral("admin"), QStringLiteral("password"));
+    QVERIFY(errorSpy.wait(2000));
+
+    const AdminError error = errorSpy.last().at(0).value<AdminError>();
+    QCOMPARE(error.serverCode, QStringLiteral("SECURE_STORAGE_WRITE_FAILED"));
+    QVERIFY(!client.auth()->isAuthenticated());
+    QCOMPARE(client.auth()->state(), AdminState::Revoked);
+    QVERIFY(!error.developerMessage.contains(QStringLiteral("refresh-token")));
+    QVERIFY(error.developerMessage.contains(
+        QStringLiteral("credential vault is unavailable"),
+        Qt::CaseInsensitive));
+  }
+
+  void applicationFacadeOwnsAuthTransportsAndDiagnostics() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    auto storage = std::make_shared<InMemorySecureStorage>();
+    AdminApplicationClient app(storage);
+    app.setAutoConnectRealtime(false);
+    QSignalSpy errorSpy(&app, &AdminApplicationClient::errorOccurred);
+    QSignalSpy diagnosticSpy(&app, &AdminApplicationClient::diagnosticOccurred);
+    QSignalSpy authenticatedSpy(&app, &AdminApplicationClient::authenticated);
+    QSignalSpy signedOutSpy(&app, &AdminApplicationClient::signedOut);
+
+    QVERIFY(app.configure(server.url(), QStringLiteral("admin-desktop-key")));
+    QCOMPARE(app.isConfigured(), true);
+    QVERIFY(app.realtime());
+    QVERIFY(app.system());
+    QVERIFY(app.live());
+
+    app.verifyTwoFactor(QStringLiteral("123456"));
+    QCOMPARE(errorSpy.count(), 1);
+    QCOMPARE(errorSpy.at(0).at(0).value<AdminError>().serverCode,
+             QStringLiteral("TWO_FACTOR_NOT_REQUESTED"));
+
+    app.signIn(QStringLiteral("admin"), QStringLiteral("password"));
+    QVERIFY(authenticatedSpy.wait(2000));
+    QVERIFY(app.isAuthenticated());
+    QCOMPARE(authenticatedSpy.at(0).at(0).value<AdminUser>().username,
+             QStringLiteral("admin"));
+
+    QSignalSpy statusSpy(app.system(), &SystemClient::statusReceived);
+    app.system()->fetchStatus();
+    QVERIFY(statusSpy.wait(2000));
+    QVERIFY(!app.diagnostics().isEmpty());
+    bool sawAuthenticated = false;
+    bool sawHttpCompletion = false;
+    for (const SdkDiagnostic &diagnostic : app.diagnostics()) {
+      sawAuthenticated = sawAuthenticated ||
+                         diagnostic.code == QStringLiteral("AUTHENTICATED");
+      sawHttpCompletion =
+          sawHttpCompletion ||
+          diagnostic.code == QStringLiteral("REQUEST_COMPLETED");
+      QVERIFY(!diagnostic.message.contains(QStringLiteral("access-token")));
+      QVERIFY(!diagnostic.message.contains(QStringLiteral("password"),
+                                           Qt::CaseInsensitive));
+    }
+    QVERIFY(sawAuthenticated);
+    QVERIFY(sawHttpCompletion);
+    QVERIFY(diagnosticSpy.count() > 0);
+    QVERIFY(app.diagnostics().size() >= diagnosticSpy.count());
+
+    app.signOut();
+    QVERIFY(signedOutSpy.wait(2000));
+    QVERIFY(!app.isAuthenticated());
   }
 
   void socketIoBaseSupportsHandshakeEventsAndAck() {

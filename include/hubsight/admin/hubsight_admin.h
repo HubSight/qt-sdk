@@ -1,5 +1,6 @@
 #pragma once
 
+#include "admin_application_client.h"
 #include "admin_client.h"
 #include "admin_endpoint_catalog.h"
 #include "admin_endpoint_client.h"
@@ -7,6 +8,7 @@
 #include "auth_manager.h"
 #include "config/hscfg_importer.h"
 #include "config/hscfg_types.h"
+#include "desktop_secure_storage.h"
 #include "realtime/relay_client.h"
 #include "realtime/relay_realtime_client.h"
 #include "realtime/socket_io_client.h"
@@ -18,6 +20,7 @@
 #include "resources/notification_client.h"
 #include "resources/notification_types.h"
 #include "resources/system_client.h"
+#include "sdk_diagnostics.h"
 #include "secure_storage.h"
 #include "webrtc/webrtc_client.h"
 #include "webrtc/webrtc_peer_connection.h"

@@ -51,6 +51,8 @@ public:
   void setSecureStorage(SecureStoragePtr storage);
   SecureStoragePtr secureStorage() const;
 
+  // Advanced/core API. Normal applications should use
+  // AdminApplicationClient, which owns the JWT lifecycle for them.
   AuthManager *auth() const;
   SystemClient *system() const;
   CameraClient *cameras() const;
@@ -58,8 +60,9 @@ public:
   ArchiveClient *archive() const;
   NotificationClient *notifications() const;
 
-  // Base Socket.IO transport. It is not connected automatically; configure the
-  // path/namespace and call connect when the compatible gateway is available.
+  // Advanced compatibility API. Normal applications should use
+  // AdminApplicationClient::realtime(), which never requires Socket.IO
+  // selection or packet handling.
   // The normative Admin JSON relay is exposed separately below.
   SocketIoClient *realtime() const;
 
@@ -85,8 +88,9 @@ public:
   HscfgConfig importedConfig() const;
   HscfgIntegrityState importedConfigIntegrity() const;
 
-  // Backend-neutral WebRTC session registry. Attach a native/libdatachannel
-  // adapter to each peer connection before creating an offer or answer.
+  // Advanced media integration API. Normal applications do not need to attach
+  // a native/libdatachannel adapter directly; the app-facing facade keeps this
+  // registry out of the normal application surface.
   WebRtcClient *webrtc() const;
 
   // Complete endpoint registry/facade. Calls for endpoints not yet covered by

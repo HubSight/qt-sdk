@@ -27,8 +27,9 @@ when the caller has not supplied one and emits `requestCompleted()` when an
 incoming JSON object contains a matching `request_id`, `correlation_id`, or
 `id`.
 
-For the normative Admin contract, applications should normally use the typed
-domain client:
+For the normative Admin contract, applications should normally use
+`AdminApplicationClient::realtime()`; applications using the core API can use
+`AdminClient::relayRealtime()` directly. The typed domain client is:
 
 ```cpp
 AdminClient client;

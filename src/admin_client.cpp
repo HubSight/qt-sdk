@@ -204,6 +204,7 @@ void AdminClient::initialize(SecureStoragePtr storage) {
 }
 
 bool AdminClient::setGatewayUrl(const QUrl &gatewayUrl) {
+  const bool hadConfiguration = m_transport->isConfigured();
   AdminError error;
   const QUrl normalized = normalizeGatewayUrl(gatewayUrl, &error);
   if (normalized.isEmpty() || !m_transport->setGatewayUrl(normalized)) {
@@ -218,7 +219,7 @@ bool AdminClient::setGatewayUrl(const QUrl &gatewayUrl) {
     return false;
   }
 
-  m_auth->invalidateSession();
+  m_auth->invalidateSession(hadConfiguration);
   m_webrtc->closeAll();
   m_realtime->disconnectFromServer(QStringLiteral("Admin gateway changed"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
@@ -240,7 +241,8 @@ bool AdminClient::setGatewayUrl(const QUrl &gatewayUrl) {
 QUrl AdminClient::gatewayUrl() const { return m_transport->gatewayUrl(); }
 
 void AdminClient::setApiKey(const QString &apiKey) {
-  m_auth->invalidateSession();
+  const bool hadConfiguration = m_transport->isConfigured();
+  m_auth->invalidateSession(hadConfiguration);
   m_webrtc->closeAll();
   m_realtime->disconnectFromServer(QStringLiteral("Admin API key changed"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));
@@ -414,6 +416,7 @@ bool AdminClient::applyImportedConfig(const HscfgConfig &config) {
     return false;
   }
 
+  const bool hadConfiguration = m_transport->isConfigured();
   AdminError gatewayError;
   const QUrl gateway =
       normalizeGatewayUrl(config.urls.gatewayUrl, &gatewayError);
@@ -443,7 +446,7 @@ bool AdminClient::applyImportedConfig(const HscfgConfig &config) {
     return false;
   }
 
-  m_auth->invalidateSession();
+  m_auth->invalidateSession(hadConfiguration);
   m_webrtc->closeAll();
   m_realtime->disconnectFromServer(QStringLiteral("Admin .hscfg imported"));
   m_realtime->removeHeader(QByteArrayLiteral("Authorization"));

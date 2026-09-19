@@ -20,4 +20,8 @@ bool InMemorySecureStorage::remove(const QString &key) {
   return m_values.remove(key) > 0;
 }
 
+QString InMemorySecureStorage::backendName() const {
+  return QStringLiteral("in-memory");
+}
+
 } // namespace HubSight::Admin

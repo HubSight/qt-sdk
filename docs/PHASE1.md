@@ -9,7 +9,9 @@ The implementation follows the repository documents:
 
 The backend currently exposes the Admin namespace through the gateway and
 validates the dedicated `admin_desktop` / `admin_api` client binding. The SDK
-therefore does not reuse the legacy `/api/app/v1` contract.
+therefore does not reuse the legacy `/api/app/v1` contract. This SDK targets
+Windows, macOS, and Linux desktop applications only; mobile and tablet targets
+are not supported.
 
 ## Delivered
 
@@ -65,9 +67,12 @@ WebSocket, not Socket.IO.
 - `logout` with best-effort remote revocation;
 - `fetchCurrentUser`.
 
-Access tokens are held in memory. Refresh tokens are written only through the
-`SecureStorage` interface. The default `InMemorySecureStorage` is deliberately
-not suitable for production.
+Access tokens are held in memory. Refresh tokens are written only through
+`SecureStorage`. `AdminApplicationClient` defaults to `DesktopSecureStorage`,
+which uses Windows Credential Manager, macOS Keychain Services, or Linux Secret
+Service/libsecret. If the OS vault is unavailable, writes fail closed rather
+than falling back to plaintext. `InMemorySecureStorage` is deliberately limited
+to explicit test/development injection.
 
 ### Socket.IO transport foundation
 
@@ -161,6 +166,26 @@ identity validation, content-hash checking, and optional Ed25519 verification.
 `AdminClient::importHscfg()` applies the result to HTTP, Socket.IO foundation,
 standard JSON relay, and WebRTC endpoint sources as one configuration operation.
 
+### Application-facing facade
+
+`AdminApplicationClient` is the recommended entry point for desktop/UI code.
+It owns configuration, JWT login/refresh/logout (including automatic refresh
+from `expires_in`), the optional 2FA pre-auth state, automatic Standard relay
+connection, and typed resource access. It does
+not expose `AdminTransport`, `QNetworkReply`, `AuthManager`,
+`SocketIoClient`, or `WebRtcClient` as part of the normal app surface. Socket.IO
+remains an internal compatibility capability and the normative realtime API is
+`AdminApplicationClient::realtime()`.
+
+`SdkDiagnostic` provides a bounded history and `diagnosticOccurred()` signal
+with timestamp, source, operation, stable code, retryability, and request ID
+when available. Diagnostic serialization deliberately excludes credentials and
+request bodies. `setDiagnosticLoggingEnabled(true)` writes the same sanitized
+records to the `hubsight.admin.sdk` Qt logging category. Native WebRTC/media
+engine integration remains an SDK/platform capability; applications receive a
+structured diagnostic instead of needing to manage the peer registry or native
+adapter directly.
+
 ### Standard JSON relay domain layer
 
 `AdminClient::relay()` exposes `StandardRelayClient`, while
@@ -212,8 +237,9 @@ HTTP/1.1 and WebSocket servers to verify the Admin URL namespace, dual-auth
 headers, absence of cookie/query credentials, HTTP protocol fallback reporting,
 Socket.IO handshake/event/ack handling, Socket.IO room/domain events and
 security invalidation, typed live, archive, and notification REST slices,
-`.hscfg` profile rejection, standard relay transport/domain/replay behavior,
-the complete endpoint registry/stub contract, and the maintenance response.
+`.hscfg` profile rejection, application-facade auth/diagnostics behavior,
+standard relay transport/domain/replay behavior, the complete endpoint
+registry/stub contract, and the maintenance response.
 A machine with Qt 6.6+ is required to configure and execute it. A full HTTP/2
 integration
 test additionally requires a TLS test server with ALPN support; the production

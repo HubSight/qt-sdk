@@ -2,6 +2,10 @@
 
 Phase 1 foundation for the HubSight professional Admin desktop client.
 
+Supported deployment targets are Windows, macOS, and Linux desktop only. Mobile
+and tablet environments (Android, iOS, and similar targets) are intentionally
+out of scope.
+
 ## Scope
 
 This initial release implements the REST/auth foundation described by the
@@ -58,38 +62,71 @@ argument is a generic `QJsonObject` placeholder for future typed path/query/body
 DTOs; it does not send a network request yet. The canonical method/path/auth/
 permission/phase metadata is available through `adminEndpointCatalog()`.
 
-## Minimal usage
+## Recommended application usage
+
+`AdminApplicationClient` is the app-facing facade. It hides the native HTTP
+client, JWT access/refresh-token lifecycle, Socket.IO compatibility transport,
+and WebRTC session registry. The application uses typed resources and the
+normative Standard JSON relay domain instead of selecting transports itself.
+JWT refresh is scheduled internally from `expires_in`; foreground code can
+still call `refreshSession()` when recovering from sleep/network changes.
 
 ```cpp
 #include <hubsight/admin/hubsight_admin.h>
 
+#include <QJsonDocument>
+
 using namespace HubSight::Admin;
 
-AdminClient client;
-client.setGatewayUrl(QUrl{"https://gateway.example.com"});
-client.setApiKey(QStringLiteral("admin-desktop-key"));
+AdminApplicationClient client;
+client.setDiagnosticLoggingEnabled(true);
+client.setAutoConnectRealtime(true);
 
-QObject::connect(client.auth(), &AuthManager::loginSucceeded,
-                 [](TokenSet, AdminUser user) {
+QObject::connect(&client, &AdminApplicationClient::twoFactorRequired,
+                 [&client] {
+                     client.verifyTwoFactor(QStringLiteral("123456"));
+                 });
+QObject::connect(&client, &AdminApplicationClient::authenticated,
+                 [](AdminUser user) {
                      qInfo() << "Signed in as" << user.username;
                  });
+QObject::connect(&client, &AdminApplicationClient::diagnosticOccurred,
+                 [](SdkDiagnostic diagnostic) {
+                     qInfo().noquote()
+                         << QJsonDocument(diagnostic.toJson()).toJson();
+                 });
 
-client.auth()->login(QStringLiteral("admin"), QStringLiteral("password"));
+client.configure(QUrl{"https://gateway.example.com"},
+                 QStringLiteral("admin-desktop-key"));
+client.realtime()->subscribeTopic(QStringLiteral("camera.updated"));
+client.signIn(QStringLiteral("admin"), QStringLiteral("password"));
 ```
 
-The SDK keeps the access token in memory. Applications must provide an
-OS-backed `SecureStorage` implementation before using refresh-token persistence
-in production; `InMemorySecureStorage` is only a test/development default.
+For production, prefer `importHscfgFile()` so the validated `.hscfg` profile
+configures HTTP, Standard relay, and WebRTC endpoints atomically. The SDK keeps
+the access token in memory and persists refresh tokens only through the
+operating system credential vault: Windows Credential Manager, macOS Keychain,
+or Linux Secret Service/libsecret. The default `DesktopSecureStorage` fails
+closed when the platform vault is unavailable; there is no plaintext fallback.
+`InMemorySecureStorage` is available only when explicitly injected for tests or
+short-lived development processes.
 
-For transport observability, `AdminClient::requestCompleted` reports the
-operation and protocol actually used (`HttpProtocol::Http2` or
+`AdminClient` remains available as an advanced/core API. Applications normally
+do not need to access `AuthManager`, `SocketIoClient`, `WebRtcClient`,
+`QNetworkReply`, or any native transport object. Missing/invalid native media
+integration is surfaced through sanitized diagnostics rather than requiring the
+UI layer to inspect WebRTC internals.
+
+For low-level transport observability, `AdminClient::requestCompleted` reports
+the operation and protocol actually used (`HttpProtocol::Http2` or
 `HttpProtocol::Http1_1`). HTTPS gateways negotiate HTTP/2 through ALPN when
 available; gateways without HTTP/2 support, failed ALPN negotiation, and
 loopback HTTP test servers use HTTP/1.1 automatically.
 
 ## `.hscfg` single-source configuration
 
-`AdminClient::importHscfg()` and `importHscfgFile()` accept only the Admin
+`AdminApplicationClient::importHscfg()` and `importHscfgFile()` (or the
+corresponding advanced `AdminClient` methods) accept only the Admin
 variant (`HSCFG\x02`, format `2.0`, profile `admin_api`). On a successful
 import, the validated profile atomically supplies:
 

@@ -19,8 +19,31 @@ set(CMAKE_AUTORCC ON)
 option(HUBSIGHT_ADMIN_BUILD_TESTS "Build HubSight Admin SDK tests" ${BUILD_TESTING})
 option(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT
        "Enable native .hscfg Admin importer when dependencies are available" ON)
+option(HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE
+       "Enable Windows/macOS/Linux desktop credential-vault integration" ON)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Network WebSockets)
+
+set(HUBSIGHT_ADMIN_MACOS_KEYCHAIN_AVAILABLE OFF)
+set(HUBSIGHT_ADMIN_LIBSECRET_AVAILABLE OFF)
+set(HUBSIGHT_COREFOUNDATION_FRAMEWORK "")
+if(HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        find_library(HUBSIGHT_SECURITY_FRAMEWORK Security)
+        find_library(HUBSIGHT_COREFOUNDATION_FRAMEWORK CoreFoundation)
+        if(HUBSIGHT_SECURITY_FRAMEWORK AND HUBSIGHT_COREFOUNDATION_FRAMEWORK)
+            set(HUBSIGHT_ADMIN_MACOS_KEYCHAIN_AVAILABLE ON)
+        endif()
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(HUBSIGHT_LIBSECRET QUIET IMPORTED_TARGET libsecret-1)
+            if(HUBSIGHT_LIBSECRET_FOUND)
+                set(HUBSIGHT_ADMIN_LIBSECRET_AVAILABLE ON)
+            endif()
+        endif()
+    endif()
+endif()
 
 set(HUBSIGHT_ADMIN_HSCFG_AVAILABLE OFF)
 if(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT)
@@ -43,6 +66,7 @@ if(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT)
 endif()
 
 set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
+    include/hubsight/admin/admin_application_client.h
     include/hubsight/admin/admin_client.h
     include/hubsight/admin/admin_endpoint_catalog.h
     include/hubsight/admin/admin_endpoint_client.h
@@ -51,6 +75,8 @@ set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/auth_manager.h
     include/hubsight/admin/hubsight_admin.h
     include/hubsight/admin/secure_storage.h
+    include/hubsight/admin/desktop_secure_storage.h
+    include/hubsight/admin/sdk_diagnostics.h
     include/hubsight/admin/config/hscfg_types.h
     include/hubsight/admin/config/hscfg_importer.h
     include/hubsight/admin/resources/camera_client.h
@@ -71,6 +97,7 @@ set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
 )
 
 set(HUBSIGHT_ADMIN_SOURCES
+    src/admin_application_client.cpp
     src/admin_client.cpp
     src/admin_endpoint_catalog.cpp
     src/admin_endpoint_client.cpp
@@ -80,6 +107,8 @@ set(HUBSIGHT_ADMIN_SOURCES
     src/auth_manager.cpp
     src/resource_helpers.h
     src/secure_storage.cpp
+    src/desktop_secure_storage.cpp
+    src/sdk_diagnostics.cpp
     src/config/hscfg_types.cpp
     src/config/hscfg_importer.cpp
     src/resources/camera_client.cpp
@@ -124,6 +153,24 @@ if(HUBSIGHT_ADMIN_HSCFG_AVAILABLE)
         PkgConfig::HUBSIGHT_LIBZIP
         PkgConfig::HUBSIGHT_LIBYAML
     )
+endif()
+if(WIN32 AND HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE)
+    target_link_libraries(hubsight-admin-sdk PRIVATE Advapi32)
+    target_compile_definitions(hubsight-admin-sdk
+        PRIVATE HUBSIGHT_ADMIN_WINDOWS_CREDENTIALS_AVAILABLE)
+endif()
+if(HUBSIGHT_ADMIN_MACOS_KEYCHAIN_AVAILABLE)
+    target_link_libraries(hubsight-admin-sdk PRIVATE
+        ${HUBSIGHT_SECURITY_FRAMEWORK}
+        ${HUBSIGHT_COREFOUNDATION_FRAMEWORK}
+    )
+    target_compile_definitions(hubsight-admin-sdk
+        PRIVATE HUBSIGHT_ADMIN_MACOS_KEYCHAIN_AVAILABLE)
+endif()
+if(HUBSIGHT_ADMIN_LIBSECRET_AVAILABLE)
+    target_link_libraries(hubsight-admin-sdk PRIVATE PkgConfig::HUBSIGHT_LIBSECRET)
+    target_compile_definitions(hubsight-admin-sdk
+        PRIVATE HUBSIGHT_ADMIN_LIBSECRET_AVAILABLE)
 endif()
 target_include_directories(hubsight-admin-sdk
     PUBLIC
