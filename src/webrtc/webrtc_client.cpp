@@ -98,4 +98,34 @@ void WebRtcClient::closeAll() {
   }
 }
 
+bool WebRtcClient::setEndpointUrls(const QUrl &mediaBaseUrl,
+                                   const QUrl &signalingUrl, int mediaPort) {
+  if (!mediaBaseUrl.isValid() || mediaBaseUrl.host().isEmpty() ||
+      !signalingUrl.isValid() || signalingUrl.host().isEmpty() ||
+      mediaPort < 1 || mediaPort > 65535) {
+    WebRtcError error;
+    error.code = WebRtcErrorCode::InvalidConfiguration;
+    error.message = QStringLiteral("WebRTC endpoint configuration is invalid.");
+    error.operation = QStringLiteral("webrtc.configureEndpoints");
+    emit errorOccurred(error);
+    return false;
+  }
+  m_mediaBaseUrl = mediaBaseUrl;
+  m_signalingUrl = signalingUrl;
+  m_mediaPort = mediaPort;
+  return true;
+}
+
+void WebRtcClient::clearEndpointUrls() {
+  m_mediaBaseUrl = QUrl{};
+  m_signalingUrl = QUrl{};
+  m_mediaPort = 8555;
+}
+
+QUrl WebRtcClient::mediaBaseUrl() const { return m_mediaBaseUrl; }
+
+QUrl WebRtcClient::signalingUrl() const { return m_signalingUrl; }
+
+int WebRtcClient::mediaPort() const { return m_mediaPort; }
+
 } // namespace HubSight::Admin

@@ -48,6 +48,108 @@ enum class ErrorCategory {
 };
 Q_ENUM_NS(ErrorCategory)
 
+enum class HscfgImportError {
+  None,
+  ImporterUnavailable,
+  InvalidMagic,
+  InvalidContainer,
+  InvalidPin,
+  DecryptionFailed,
+  ZipInvalid,
+  YamlInvalid,
+  UnexpectedPayload,
+  ValidationFailed,
+  ContentHashMissing,
+  ContentHashMismatch,
+  SignatureInvalid,
+};
+Q_ENUM_NS(HscfgImportError)
+
+enum class HscfgIntegrityState {
+  NotChecked,
+  ContentHashVerified,
+  SignatureUnavailable,
+  FullyVerified,
+};
+Q_ENUM_NS(HscfgIntegrityState)
+
+enum class WebRtcSdpType {
+  Offer,
+  Pranswer,
+  Answer,
+  Rollback,
+  Invalid,
+};
+Q_ENUM_NS(WebRtcSdpType)
+
+enum class WebRtcPeerConnectionState {
+  New,
+  Connecting,
+  Connected,
+  Disconnected,
+  Failed,
+  Closed,
+};
+Q_ENUM_NS(WebRtcPeerConnectionState)
+
+enum class WebRtcIceConnectionState {
+  New,
+  Checking,
+  Connected,
+  Completed,
+  Disconnected,
+  Failed,
+  Closed,
+};
+Q_ENUM_NS(WebRtcIceConnectionState)
+
+enum class WebRtcIceGatheringState {
+  New,
+  Gathering,
+  Complete,
+};
+Q_ENUM_NS(WebRtcIceGatheringState)
+
+enum class WebRtcSignalingState {
+  Stable,
+  HaveLocalOffer,
+  HaveRemoteOffer,
+  Closed,
+};
+Q_ENUM_NS(WebRtcSignalingState)
+
+enum class WebRtcMediaKind {
+  Audio,
+  Video,
+  Data,
+};
+Q_ENUM_NS(WebRtcMediaKind)
+
+enum class WebRtcIceTransportPolicy {
+  All,
+  Relay,
+};
+Q_ENUM_NS(WebRtcIceTransportPolicy)
+
+enum class WebRtcBundlePolicy {
+  Balanced,
+  MaxBundle,
+  MaxCompat,
+};
+Q_ENUM_NS(WebRtcBundlePolicy)
+
+enum class WebRtcErrorCode {
+  InvalidConfiguration,
+  InvalidState,
+  BackendUnavailable,
+  BackendError,
+  InvalidSessionDescription,
+  InvalidIceCandidate,
+  Unsupported,
+  Unknown,
+};
+Q_ENUM_NS(WebRtcErrorCode)
+
 struct HUBSIGHT_ADMIN_EXPORT MaintenanceInfo {
   bool active = true;
   QString code;

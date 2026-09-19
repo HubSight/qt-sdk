@@ -17,8 +17,30 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 option(HUBSIGHT_ADMIN_BUILD_TESTS "Build HubSight Admin SDK tests" ${BUILD_TESTING})
+option(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT
+       "Enable native .hscfg Admin importer when dependencies are available" ON)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Network WebSockets)
+
+set(HUBSIGHT_ADMIN_HSCFG_AVAILABLE OFF)
+if(HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT)
+    find_package(OpenSSL QUIET COMPONENTS Crypto)
+    find_package(PkgConfig QUIET)
+    if(OpenSSL_FOUND AND PkgConfig_FOUND)
+        pkg_check_modules(HUBSIGHT_ARGON2 QUIET IMPORTED_TARGET libargon2)
+        pkg_check_modules(HUBSIGHT_LIBZIP QUIET IMPORTED_TARGET libzip)
+        pkg_check_modules(HUBSIGHT_LIBYAML QUIET IMPORTED_TARGET yaml-0.1)
+        if(HUBSIGHT_ARGON2_FOUND AND HUBSIGHT_LIBZIP_FOUND AND
+           HUBSIGHT_LIBYAML_FOUND)
+            set(HUBSIGHT_ADMIN_HSCFG_AVAILABLE ON)
+        endif()
+    endif()
+    if(NOT HUBSIGHT_ADMIN_HSCFG_AVAILABLE)
+        message(WARNING
+            "HSCFG importer disabled: install OpenSSL Crypto, libargon2, "
+            "libzip, and libyaml, or set HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=OFF.")
+    endif()
+endif()
 
 set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/admin_client.h
@@ -29,9 +51,20 @@ set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/auth_manager.h
     include/hubsight/admin/hubsight_admin.h
     include/hubsight/admin/secure_storage.h
+    include/hubsight/admin/config/hscfg_types.h
+    include/hubsight/admin/config/hscfg_importer.h
     include/hubsight/admin/resources/camera_client.h
     include/hubsight/admin/resources/system_client.h
+    include/hubsight/admin/resources/live_types.h
+    include/hubsight/admin/resources/live_client.h
+    include/hubsight/admin/resources/archive_types.h
+    include/hubsight/admin/resources/archive_client.h
+    include/hubsight/admin/resources/notification_types.h
+    include/hubsight/admin/resources/notification_client.h
     include/hubsight/admin/realtime/socket_io_client.h
+    include/hubsight/admin/realtime/socket_io_realtime_client.h
+    include/hubsight/admin/realtime/relay_client.h
+    include/hubsight/admin/realtime/relay_realtime_client.h
     include/hubsight/admin/webrtc/webrtc_types.h
     include/hubsight/admin/webrtc/webrtc_peer_connection.h
     include/hubsight/admin/webrtc/webrtc_client.h
@@ -47,9 +80,20 @@ set(HUBSIGHT_ADMIN_SOURCES
     src/auth_manager.cpp
     src/resource_helpers.h
     src/secure_storage.cpp
+    src/config/hscfg_types.cpp
+    src/config/hscfg_importer.cpp
     src/resources/camera_client.cpp
     src/resources/system_client.cpp
+    src/resources/live_types.cpp
+    src/resources/live_client.cpp
+    src/resources/archive_types.cpp
+    src/resources/archive_client.cpp
+    src/resources/notification_types.cpp
+    src/resources/notification_client.cpp
     src/realtime/socket_io_client.cpp
+    src/realtime/socket_io_realtime_client.cpp
+    src/realtime/relay_client.cpp
+    src/realtime/relay_realtime_client.cpp
     src/webrtc/webrtc_types.cpp
     src/webrtc/webrtc_peer_connection.cpp
     src/webrtc/webrtc_client.cpp
@@ -64,11 +108,23 @@ add_library(HubSight::AdminSdk ALIAS hubsight-admin-sdk)
 
 target_compile_features(hubsight-admin-sdk PUBLIC cxx_std_20)
 target_compile_definitions(hubsight-admin-sdk PRIVATE HUBSIGHT_ADMIN_LIBRARY)
+if(HUBSIGHT_ADMIN_HSCFG_AVAILABLE)
+    target_compile_definitions(hubsight-admin-sdk
+        PRIVATE HUBSIGHT_ADMIN_HSCFG_AVAILABLE)
+endif()
 target_link_libraries(hubsight-admin-sdk PUBLIC
     Qt6::Core
     Qt6::Network
     Qt6::WebSockets
 )
+if(HUBSIGHT_ADMIN_HSCFG_AVAILABLE)
+    target_link_libraries(hubsight-admin-sdk PRIVATE
+        OpenSSL::Crypto
+        PkgConfig::HUBSIGHT_ARGON2
+        PkgConfig::HUBSIGHT_LIBZIP
+        PkgConfig::HUBSIGHT_LIBYAML
+    )
+endif()
 target_include_directories(hubsight-admin-sdk
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

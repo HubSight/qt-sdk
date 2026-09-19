@@ -57,6 +57,7 @@ public:
   // are not accepted; use setHeader() or setAuth() instead.
   bool setBaseUrl(const QUrl &url);
   QUrl baseUrl() const;
+  void clearConfiguration();
 
   // The default Socket.IO path is /socket.io/. A deployment-specific path can
   // be configured, for example /relay/admin/v1/socket.io/.

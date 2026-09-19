@@ -115,39 +115,39 @@ namespace HubSight::Admin {
     "/cameras/{camera_id}/recognition-logs", true, "members:manage",           \
     "Deferred")                                                                \
   X(LiveCapabilities, liveCapabilities, "GET", "/live/capabilities", true,     \
-    "cameras:view", "Deferred")                                                \
+    "cameras:view", "Phase 2")                                                 \
   X(LiveCameras, liveCameras, "GET", "/live/cameras", true, "cameras:view",    \
-    "Deferred")                                                                \
+    "Phase 2")                                                                 \
   X(LiveSessionsNegotiate, liveSessionsNegotiate, "POST",                      \
-    "/live/sessions:negotiate", true, "cameras:view", "Deferred")              \
+    "/live/sessions:negotiate", true, "cameras:view", "Phase 2")               \
   X(LiveSessionsHeartbeat, liveSessionsHeartbeat, "POST",                      \
-    "/live/sessions:heartbeat", true, "cameras:view", "Deferred")              \
+    "/live/sessions:heartbeat", true, "cameras:view", "Phase 2")               \
   X(LiveSessionsRelease, liveSessionsRelease, "POST",                          \
-    "/live/sessions:release", true, "cameras:view", "Deferred")                \
+    "/live/sessions:release", true, "cameras:view", "Phase 2")                 \
   X(LiveSessionsChangeProfile, liveSessionsChangeProfile, "POST",              \
-    "/live/sessions:change-profile", true, "cameras:view", "Deferred")         \
+    "/live/sessions:change-profile", true, "cameras:view", "Phase 2")          \
   X(LiveSessionsStats, liveSessionsStats, "GET", "/live/sessions:stats", true, \
-    "cameras:view", "Deferred")                                                \
+    "cameras:view", "Phase 2")                                                 \
   X(LiveSessionsQoe, liveSessionsQoe, "POST", "/live/sessions:qoe", true,      \
-    "cameras:view", "Deferred")                                                \
+    "cameras:view", "Phase 2")                                                 \
   X(LiveCameraStatus, liveCameraStatus, "GET",                                 \
-    "/live/cameras/{camera_id}/status", true, "cameras:view", "Deferred")      \
+    "/live/cameras/{camera_id}/status", true, "cameras:view", "Phase 2")       \
   X(ArchiveTimeline, archiveTimeline, "GET", "/archive/timeline", true,        \
-    "recordings:view", "Deferred")                                             \
+    "recordings:view", "Phase 2")                                              \
   X(ArchiveAvailableDays, archiveAvailableDays, "GET",                         \
     "/archive/cameras/{camera_id}/available-days", true, "recordings:view",    \
-    "Deferred")                                                                \
+    "Phase 2")                                                                 \
   X(ArchiveRecordingGet, archiveRecordingGet, "GET",                           \
-    "/archive/recordings/{recording_id}", true, "recordings:view", "Deferred") \
+    "/archive/recordings/{recording_id}", true, "recordings:view", "Phase 2")  \
   X(ArchiveRecordingPlaybackUrl, archiveRecordingPlaybackUrl, "POST",          \
     "/archive/recordings/{recording_id}:playback-url", true,                   \
-    "recordings:view", "Deferred")                                             \
+    "recordings:view", "Phase 2")                                              \
   X(ArchiveRecordingDownloadUrl, archiveRecordingDownloadUrl, "POST",          \
     "/archive/recordings/{recording_id}:download-url", true,                   \
-    "recordings:view", "Deferred")                                             \
+    "recordings:view", "Phase 2")                                              \
   X(ArchiveRecordingThumbnailUrl, archiveRecordingThumbnailUrl, "POST",        \
     "/archive/recordings/{recording_id}:thumbnail-url", true,                  \
-    "recordings:view", "Deferred")                                             \
+    "recordings:view", "Phase 2")                                              \
   X(MembersList, membersList, "GET", "/members", true, "members:view",         \
     "Deferred")                                                                \
   X(MembersCreate, membersCreate, "POST", "/members", true, "members:manage",  \
@@ -177,29 +177,29 @@ namespace HubSight::Admin {
   X(UploadImagesPresign, uploadImagesPresign, "POST",                          \
     "/uploads/images:presign", true, "members:manage", "Deferred")             \
   X(NotificationsList, notificationsList, "GET", "/notifications", true,       \
-    "Authenticated", "Deferred")                                               \
+    "Authenticated", "Phase 2")                                                \
   X(NotificationGet, notificationGet, "GET",                                   \
-    "/notifications/{notification_id}", true, "Authenticated", "Deferred")     \
+    "/notifications/{notification_id}", true, "Authenticated", "Phase 2")      \
   X(NotificationPatch, notificationPatch, "PATCH",                             \
-    "/notifications/{notification_id}", true, "Authenticated", "Deferred")     \
+    "/notifications/{notification_id}", true, "Authenticated", "Phase 2")      \
   X(NotificationsReadAll, notificationsReadAll, "POST",                        \
-    "/notifications:read-all", true, "Authenticated", "Deferred")              \
+    "/notifications:read-all", true, "Authenticated", "Phase 2")               \
   X(NotificationDelete, notificationDelete, "DELETE",                          \
-    "/notifications/{notification_id}", true, "Authenticated", "Deferred")     \
+    "/notifications/{notification_id}", true, "Authenticated", "Phase 2")      \
   X(NotificationsBatchDelete, notificationsBatchDelete, "POST",                \
-    "/notifications:batch-delete", true, "Authenticated", "Deferred")          \
+    "/notifications:batch-delete", true, "Authenticated", "Phase 2")           \
   X(NotificationsClear, notificationsClear, "POST", "/notifications:clear",    \
-    true, "Authenticated", "Deferred")                                         \
+    true, "Authenticated", "Phase 2")                                          \
   X(NotificationsTest, notificationsTest, "POST", "/notifications:test", true, \
-    "system:monitor", "Deferred")                                              \
+    "system:monitor", "Phase 2")                                               \
   X(NotificationPushConfig, notificationPushConfig, "GET",                     \
-    "/notifications/push-config", true, "Authenticated", "Deferred")           \
+    "/notifications/push-config", true, "Authenticated", "Phase 2")            \
   X(NotificationPushSubscriptionPut, notificationPushSubscriptionPut, "PUT",   \
     "/notifications/push-subscriptions/current", true, "Authenticated",        \
-    "Deferred")                                                                \
+    "Phase 2")                                                                 \
   X(NotificationPushSubscriptionDelete, notificationPushSubscriptionDelete,    \
     "DELETE", "/notifications/push-subscriptions/current", true,               \
-    "Authenticated", "Deferred")                                               \
+    "Authenticated", "Phase 2")                                                \
   X(NvrStatus, nvrStatus, "GET", "/nvr/status", true, "system:monitor",        \
     "Deferred")                                                                \
   X(PoolStatus, poolStatus, "GET", "/pool/status", true, "system:monitor",     \

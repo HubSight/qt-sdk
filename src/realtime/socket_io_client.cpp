@@ -149,6 +149,15 @@ bool SocketIoClient::setBaseUrl(const QUrl &url) {
 
 QUrl SocketIoClient::baseUrl() const { return m_baseUrl; }
 
+void SocketIoClient::clearConfiguration() {
+  disconnectFromServer(QStringLiteral("Socket.IO configuration cleared"));
+  m_baseUrl = QUrl{};
+  m_path = QStringLiteral("/socket.io/");
+  m_namespace = QStringLiteral("/");
+  m_auth = {};
+  m_headers.clear();
+}
+
 bool SocketIoClient::setPath(const QString &path) {
   bool valid = false;
   const QString normalized = normalizedPath(path, &valid);

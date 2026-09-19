@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QObject>
 #include <QStringList>
+#include <QUrl>
 
 #include <memory>
 
@@ -29,6 +30,15 @@ public:
   bool closePeerConnection(const QString &sessionId);
   void closeAll();
 
+  // Endpoint source supplied by the Admin .hscfg importer. A media engine
+  // adapter may use these values when it is attached in a later phase.
+  bool setEndpointUrls(const QUrl &mediaBaseUrl, const QUrl &signalingUrl,
+                       int mediaPort = 8555);
+  void clearEndpointUrls();
+  QUrl mediaBaseUrl() const;
+  QUrl signalingUrl() const;
+  int mediaPort() const;
+
 signals:
   void peerConnectionCreated(QString sessionId,
                              HubSight::Admin::WebRtcPeerConnection *peer);
@@ -38,6 +48,9 @@ signals:
 
 private:
   QHash<QString, WebRtcPeerConnection *> m_peerConnections;
+  QUrl m_mediaBaseUrl;
+  QUrl m_signalingUrl;
+  int m_mediaPort = 8555;
 };
 
 } // namespace HubSight::Admin

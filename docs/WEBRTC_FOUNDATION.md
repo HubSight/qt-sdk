@@ -52,8 +52,8 @@ media connection.
 
 ## Phase 2 boundary
 
-The live REST client will obtain `session_id`, ICE server configuration, and
-signaling payloads from `/api/admin/v1/live/*`. A separate standard JSON
+`AdminClient::live()` obtains `session_id`, ICE server configuration, and
+negotiation payloads from `/api/admin/v1/live/*`. A separate standard JSON
 WebSocket relay client will carry relay/replay events at `/relay/admin/v1`.
 Neither path should use Socket.IO packets. The WebRTC adapter is responsible
 for media, ICE gathering, DTLS/SRTP, and platform decode/render integration;

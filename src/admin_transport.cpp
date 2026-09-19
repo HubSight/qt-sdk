@@ -2,6 +2,7 @@
 
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QUuid>
 
@@ -77,6 +78,30 @@ bool AdminTransport::setGatewayUrl(const QUrl &gatewayUrl) {
 }
 
 QUrl AdminTransport::gatewayUrl() const { return m_gatewayUrl; }
+
+bool AdminTransport::setConnection(const QUrl &gatewayUrl,
+                                   const QString &apiKey) {
+  if (!gatewayUrl.isValid() || gatewayUrl.host().isEmpty() ||
+      (gatewayUrl.scheme() != QStringLiteral("http") &&
+       gatewayUrl.scheme() != QStringLiteral("https")) ||
+      apiKey.trimmed().isEmpty()) {
+    return false;
+  }
+  QUrl normalized = gatewayUrl;
+  normalized.setQuery(QString());
+  normalized.setFragment(QString());
+  normalized.setPath(withoutTrailingSlash(normalized.path()));
+  m_gatewayUrl = normalized;
+  m_apiKey = apiKey.trimmed();
+  return true;
+}
+
+void AdminTransport::clearConnection() {
+  cancelAll();
+  m_gatewayUrl = QUrl{};
+  m_apiKey.clear();
+  m_accessToken.clear();
+}
 
 bool AdminTransport::setApiKey(const QString &apiKey) {
   m_apiKey = apiKey.trimmed();
@@ -262,7 +287,15 @@ quint64 AdminTransport::send(const TransportRequest &request) {
     reply = m_manager->put(networkRequest, request.body);
     break;
   case QNetworkAccessManager::DeleteOperation:
-    reply = m_manager->deleteResource(networkRequest);
+    // Some Admin destructive endpoints carry the required confirmation in a
+    // JSON body. QNetworkAccessManager::deleteResource() cannot send one, so
+    // preserve the body with an explicit DELETE when present.
+    if (request.body.isEmpty()) {
+      reply = m_manager->deleteResource(networkRequest);
+    } else {
+      reply = m_manager->sendCustomRequest(
+          networkRequest, QByteArrayLiteral("DELETE"), request.body);
+    }
     break;
   default:
     reply = m_manager->sendCustomRequest(

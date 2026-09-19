@@ -86,9 +86,93 @@ The default endpoint path is `/socket.io/`; applications can override it for a
 gateway-specific relay path. Through `AdminClient`, the configured API key and
 current access token are mirrored to WebSocket handshake headers, and an active
 connection is re-established when the access token rotates. Polling
-fallback, binary attachments, event replay, and domain-specific realtime clients
-are intentionally outside this base layer. The client is not connected
-automatically.
+fallback and binary attachments remain outside this base transport. The client is
+not connected automatically.
+
+### Socket.IO realtime domain layer
+
+`SocketIoRealtimeClient`, exposed through `AdminClient::socketIoRealtime()`,
+provides the optional compatibility domain layer for the Socket.IO gateway used
+by current relay deployments. It manages additional room subscriptions,
+acknowledged join/leave lifecycle, reconnect/rejoin behavior, generic event
+normalization, and typed signals for camera, notification, pool, NVR, member,
+vision, and operation events. `session:revoked` and `auth:force_logout` are
+security events: `AdminClient` invalidates the local auth session, closes
+WebRTC peers, and disconnects Socket.IO and standard relay transports.
+
+The layer does not recreate the authenticated user/role/session rooms assigned by
+the gateway. It also does not replace `StandardRelayClient`: the normative Admin
+realtime contract is plain JSON WebSocket at `/relay/admin/v1`, while this
+Socket.IO API targets the compatible Socket.IO gateway (currently `/relay`).
+The Standard relay domain layer is exposed separately through
+`AdminClient::relayRealtime()` and does not use Socket.IO framing.
+
+### Initial Phase 2 live REST slice
+
+The first Phase 2 slice is now available through `AdminClient::live()`:
+
+- live capabilities and cursor-based live camera listing;
+- WebRTC session negotiate/heartbeat/release/change-profile;
+- session stats, QoE reporting, and camera status.
+
+The client uses typed live DTOs and the existing dual-auth Admin transport.
+Standard JSON relay events and replay are provided by
+`AdminClient::relayRealtime()`; native media-engine integration remains a
+separate layer.
+
+### Initial Phase 2 archive REST slice
+
+`AdminClient::archive()` now implements the normative archive endpoints with
+protected dual authentication:
+
+- timeline query by `from`, `to`, optional `camera_id`, cursor, and limit;
+- available recording days by camera/year/month;
+- recording metadata;
+- playback, download, and thumbnail URL action requests.
+
+The typed parsers accept the documented `data` envelope, flat objects, and the
+legacy backend's flat timeline array shape while retaining normalized `raw`
+objects. The SDK intentionally uses the catalog paths under
+`/api/admin/v1/archive`; the current sibling backend still exposes legacy
+routes such as `/archive/:id/stream`, so backend route parity is required before
+end-to-end use against that implementation. Native media playback, range
+seeking, thumbnail cache, and WebRTC/media integration are not part of this
+slice.
+
+### Initial Phase 2 notifications REST slice
+
+`AdminClient::notifications()` implements all 11 normative notification and
+push-configuration endpoints. It provides typed notification/page/config models,
+protected dual-auth requests, cursor/filter query construction, JSON mutation
+payloads, explicit destructive-action confirmations, and empty-body success
+handling for delete-style responses.
+
+The SDK uses the Admin action paths and current push-subscription resource from
+the catalog. The current sibling backend still exposes legacy routes such as
+`/notifications/read-all`, `/notifications/batch`, and
+`/notifications/:id/read`; those routes are intentionally not used by this
+client and require backend Admin route parity.
+
+### Admin `.hscfg` v2 importer
+
+`HscfgImporter` accepts only the Admin `HSCFG\x02` profile and performs native
+Argon2id/AES-GCM decryption, bounded in-memory ZIP/YAML parsing, URL and
+identity validation, content-hash checking, and optional Ed25519 verification.
+`AdminClient::importHscfg()` applies the result to HTTP, Socket.IO foundation,
+standard JSON relay, and WebRTC endpoint sources as one configuration operation.
+
+### Standard JSON relay domain layer
+
+`AdminClient::relay()` exposes `StandardRelayClient`, while
+`AdminClient::relayRealtime()` exposes the typed domain layer for the normative
+plain JSON WebSocket contract at `/relay/admin/v1`. The domain layer enforces
+the documented topic allowlist, sends acknowledged `subscribe`, `unsubscribe`,
+`resume`, and `ping` commands, parses the event envelope into `RelayEvent`, and
+routes typed camera, pool, NVR, member, vision, operation, notification, and
+security signals. It retains the latest `event_id`; after reconnect it requests
+REST snapshot reconciliation before the application calls `requestResume()`.
+Unavailable replay is reported as a best-effort result rather than a fatal
+transport error. It intentionally has no generic room or client broadcast API.
 
 ### WebRTC foundation
 
@@ -110,13 +194,14 @@ finalized across the Admin API.
 
 ## Intentionally deferred
 
-- domain-specific realtime clients on `/relay/admin/v1` and event replay;
 - WebRTC media-engine integration/libdatachannel, FFmpeg, hardware decoding,
   and live matrix;
-- asynchronous thumbnail cache and archive playback;
-- camera mutation, PTZ, discovery, members, notifications, access governance;
+- asynchronous thumbnail cache, native archive playback, and range-seeking;
+- camera mutation, PTZ, discovery, members, access governance;
 - passkey/WebAuthn login options and verification;
-- `.hscfg` v2 decrypt/signature verification;
+- domain-specific `.hscfg` profile management and persistent secure-storage
+  adapters (the in-memory Admin importer is delivered; storage policy remains
+  application-owned);
 - production Keychain/Credential Manager/Secret Service adapters;
 - QML controls and sample VMS UI.
 
@@ -125,8 +210,11 @@ finalized across the Admin API.
 `tests/test_admin_sdk.cpp` is a contract-oriented Qt Test suite. It uses local
 HTTP/1.1 and WebSocket servers to verify the Admin URL namespace, dual-auth
 headers, absence of cookie/query credentials, HTTP protocol fallback reporting,
-Socket.IO handshake/event/ack handling, the complete endpoint registry/stub
-contract, and the maintenance response. A machine
-with Qt 6.6+ is required to configure and execute it. A full HTTP/2 integration
+Socket.IO handshake/event/ack handling, Socket.IO room/domain events and
+security invalidation, typed live, archive, and notification REST slices,
+`.hscfg` profile rejection, standard relay transport/domain/replay behavior,
+the complete endpoint registry/stub contract, and the maintenance response.
+A machine with Qt 6.6+ is required to configure and execute it. A full HTTP/2
+integration
 test additionally requires a TLS test server with ALPN support; the production
 path uses Qt's native negotiation rather than a separate direct/h2c mode.

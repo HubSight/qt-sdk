@@ -49,6 +49,8 @@ public:
 
   bool setGatewayUrl(const QUrl &gatewayUrl);
   QUrl gatewayUrl() const;
+  bool setConnection(const QUrl &gatewayUrl, const QString &apiKey);
+  void clearConnection();
   bool setApiKey(const QString &apiKey);
   void setAccessToken(const QString &accessToken);
 
