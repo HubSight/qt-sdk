@@ -240,6 +240,85 @@ If the test executable is built for a target runner, set
 run CTest on the ARM64 device/VM after installing the target library and Qt
 runtime.
 
+## Building Linux targets on macOS
+
+Yes. The recommended approach is to build inside a Linux container or VM rather
+than trying to use macOS Clang and macOS Qt libraries directly. Docker Desktop,
+OrbStack, Colima, or a Linux VM can be used.
+
+On an Apple Silicon Mac:
+
+- use `--platform linux/arm64` for a Linux ARM64 build;
+- use `--platform linux/amd64` for a Linux amd64 build; Docker Desktop runs this
+  through emulation and it will be slower;
+- use a separate build directory for each target architecture;
+- install and use the Linux target's Qt and native dependencies inside the
+  container/VM.
+
+The following example uses Ubuntu 24.04 containers. It builds the SDK and runs
+CTest inside the target Linux environment:
+
+### Linux ARM64 from macOS arm64
+
+```sh
+docker run --rm --platform linux/arm64 \
+  -v "$PWD":/src -w /src ubuntu:24.04 \
+  bash -lc 'export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates cmake g++ ninja-build pkg-config \
+      qt6-base-dev qt6-websockets-dev qt6-base-dev-tools \
+      libssl-dev libargon2-dev libzip-dev libyaml-dev libsecret-1-dev && \
+    cmake -S . -B build/linux-arm64-macos-host -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DHUBSIGHT_ADMIN_BUILD_TESTS=ON \
+      -DHUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=ON \
+      -DHUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE=ON && \
+    cmake --build build/linux-arm64-macos-host --parallel && \
+    ctest --test-dir build/linux-arm64-macos-host --output-on-failure'
+```
+
+### Linux amd64 from macOS arm64
+
+```sh
+docker run --rm --platform linux/amd64 \
+  -v "$PWD":/src -w /src ubuntu:24.04 \
+  bash -lc 'export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates cmake g++ ninja-build pkg-config \
+      qt6-base-dev qt6-websockets-dev qt6-base-dev-tools \
+      libssl-dev libargon2-dev libzip-dev libyaml-dev libsecret-1-dev && \
+    cmake -S . -B build/linux-amd64-macos-host -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DHUBSIGHT_ADMIN_BUILD_TESTS=ON \
+      -DHUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT=ON \
+      -DHUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE=ON && \
+    cmake --build build/linux-amd64-macos-host --parallel && \
+    ctest --test-dir build/linux-amd64-macos-host --output-on-failure'
+```
+
+The container's architecture determines the produced binary. Verify it after
+copying/installing artifacts:
+
+```sh
+docker run --rm --platform linux/arm64 \
+  -v "$PWD":/src -w /src ubuntu:24.04 \
+  file build/linux-arm64-macos-host/libhubsight-admin-sdk.so
+
+# Replace linux/arm64 and the build directory with linux/amd64 when needed.
+```
+
+A container usually has no desktop Secret Service daemon. The SDK still builds
+with libsecret support, but the secure-storage round-trip test may skip because
+no runtime vault provider is available. Run the final secure-storage validation
+on a real Linux desktop/VM with GNOME Keyring, KWallet, or another Secret Service
+provider.
+
+For faster ARM64 iteration on Apple Silicon, prefer the `linux/arm64` container
+or a native ARM64 Linux runner. Use `linux/amd64` only when an x86_64 Linux
+artifact is required.
+
 ## macOS — Apple Silicon arm64
 
 Install Xcode Command Line Tools and an arm64 Qt 6 kit. Build using Apple Clang
