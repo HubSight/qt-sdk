@@ -9,9 +9,9 @@
 
 namespace HubSight::Admin {
 
-// The complete Admin API v1 surface. The registry is intentionally broader
-// than the currently implemented Phase 1 clients; deferred methods are kept in
-// the public SDK so later phases do not need to redesign the client surface.
+// The complete Admin API v1 surface. Target-phase metadata is retained for
+// compatibility with the API plan, while every HTTP entry is callable through
+// AdminEndpointClient and typed resource clients cover the current domains.
 #define HUBSIGHT_ADMIN_ENDPOINTS(X)                                            \
   X(SystemStatus, systemStatus, "GET", "/system/status", false, "", "Phase 1") \
   X(AuthLogin, authLogin, "POST", "/auth/login", false, "", "Phase 1")         \

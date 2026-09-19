@@ -23,6 +23,9 @@ struct TransportRequest {
   QString operation;
   RequestAuth authentication = RequestAuth::ApiKeyOnly;
   QByteArray body;
+  // Empty means JSON when body is non-empty. Binary/multipart callers set the
+  // exact media type, including a multipart boundary when applicable.
+  QByteArray contentType;
   QString idempotencyKey;
   int timeoutMs = 15000;
 };

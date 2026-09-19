@@ -17,14 +17,18 @@ mobile, and tablet deployments are intentionally out of scope.
 
 ## Current status
 
-The repository contains the REST/auth foundation, the complete Admin API v1
-catalog, the normative Admin realtime relay, the Socket.IO compatibility layer,
-and the backend-neutral WebRTC foundation. Initial typed Phase 2 REST slices for
-live, archive, and notifications are also available.
+The repository contains the complete 136-entry Admin API v1 catalog and a working
+transport path for every HTTP entry. Typed clients now cover authentication/profile,
+account security, system operations, cameras, live, archive, members/faces/uploads,
+notifications, identity, integrations, and long-running operations. The generic
+`AdminClient::api()` fallback remains available for forward-compatible fields and
+new server-side additions without waiting for a new SDK release.
 
-The SDK is usable for desktop application integration, but it is not yet a full
-media/VMS UI product. Native WebRTC media engines, playback/rendering, caching,
-and several Admin CRUD domains remain separate follow-up work.
+The SDK is ready for desktop Admin application integration. It is not a full media/VMS
+UI product: the WebRTC signaling/session boundary is implemented, while a native
+WebRTC media engine, playback/rendering, caching, and Socket.IO binary/polling
+compatibility remain optional transport/backend work outside the Admin REST API
+surface.
 
 ## Requirements
 
@@ -45,8 +49,6 @@ HubSight::AdminSdk
 
 For the supported Windows, Linux, and macOS architecture matrix, see
 [`docs/BUILD_CROSS_PLATFORM.md`](docs/BUILD_CROSS_PLATFORM.md).
-
-## Current status
 
 ## Build
 
@@ -111,7 +113,10 @@ Use `AdminApplicationClient` for normal application and UI code. It provides:
 - one high-level configuration entry point;
 - automatic JWT refresh based on `expires_in`;
 - optional 2FA without exposing the pre-auth token;
-- typed system, camera, live, archive, and notification clients;
+- typed account, system, camera, identity, integration, member, live, archive,
+  and notification clients;
+- binary/multipart image and avatar upload helpers;
+- generic access to every catalog HTTP endpoint;
 - high-level live-session orchestration with automatic heartbeat/release;
 - normative Standard JSON realtime through `realtime()`;
 - bounded, sanitized diagnostics;
@@ -181,11 +186,18 @@ client.refreshSession();       // Usually automatic; useful after resume.
 client.signOut();
 client.connectRealtime();
 client.disconnectRealtime();
+client.account();
 client.system();
+client.systemOperations();
 client.cameras();
+client.cameraManagement();
+client.identity();
+client.integrations();
+client.members();
 client.live();
 client.archive();
 client.notifications();
+client.api(); // generic forward-compatible catalog access
 
 // Live REST negotiation, heartbeat, profile, QoE, and release are owned by
 // the facade. The app only observes typed session signals.
@@ -374,20 +386,32 @@ compatibility layer must not be pointed at `/relay/admin/v1`.
 
 ## Typed REST clients
 
-The current typed clients are exposed through `AdminClient` and the application
-facade:
+The typed clients are exposed through both `AdminClient` and
+`AdminApplicationClient`. Request DTOs are intentionally `QJsonObject` where the
+Admin API allows extensible payloads; response models are typed and every client
+emits domain-specific signals and structured `AdminError` values.
 
-| Client               | Current coverage                                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SystemClient`       | Status, capabilities, and settings.                                                                                                                                         |
-| `CameraClient`       | Cursor/limit camera list and detail/status reads.                                                                                                                           |
-| `LiveClient`         | Capabilities, camera discovery/status, WebRTC session negotiation, heartbeat, release, profile changes, stats, and QoE. The facade adds managed live-session orchestration. |
-| `ArchiveClient`      | Timeline, available days, recording metadata, playback/download/thumbnail URL actions.                                                                                      |
-| `NotificationClient` | Listing/filtering, detail, read-state mutations, deletion actions, test dispatch, push configuration, and push-subscription management.                                     |
+| Client                                    | Coverage                                                                                                                                |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `AccountClient`                           | Password verification/update, profile, sessions, 2FA, recovery codes, and passkey registration/login flows.                             |
+| `SystemClient` / `SystemOperationsClient` | Status, capabilities, settings, dashboard, health, cleanup, audit events, NVR, and pool operations.                                     |
+| `CameraClient` / `CameraManagementClient` | Camera reads plus CRUD, lifecycle, snapshot/thumbnail, homography, PTZ, presets, discovery, ONVIF, and recognition logs.                |
+| `IdentityClient`                          | Permissions, roles, users, blocking/reset/delete, and administrator-managed sessions.                                                   |
+| `IntegrationClient`                       | API clients, service accounts/Firebase preflight, app configs, download/QR/revoke, and long-running operations.                         |
+| `MemberClient`                            | Members, avatars, faces, JSON and multipart image uploads, and presigning.                                                              |
+| `LiveClient`                              | Capabilities, camera discovery/status, WebRTC session negotiation, heartbeat, release, profile changes, stats, and QoE.                 |
+| `ArchiveClient`                           | Timeline, available days, recording metadata, playback/download/thumbnail URL actions.                                                  |
+| `NotificationClient`                      | Listing/filtering, detail, read-state mutations, deletion actions, test dispatch, push configuration, and push-subscription management. |
 
-Responses use typed DTOs and emit domain-specific signals. Archive playback,
-thumbnail caching, range seeking, and media rendering are not included in the
-REST clients.
+`AdminClient::api()` additionally exposes one generic method for every catalog
+entry. It resolves path parameters, encodes query values, sends JSON bodies,
+supports GET/POST/PUT/PATCH/DELETE, idempotency keys, per-request timeouts,
+HTTP/1.1/HTTP/2 negotiation, and structured response/error signals. The realtime
+WebSocket catalog entry is deliberately routed to `realtime()`/`relay()` rather
+than sent as HTTP.
+
+Archive playback, thumbnail caching, range seeking, and media rendering are not
+included in the REST clients.
 
 ## WebRTC foundation
 
@@ -408,22 +432,31 @@ and diagnostics paths.
 
 See [`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).
 
-## Endpoint catalog and deferred endpoints
+## Endpoint catalog and generic fallback
 
 `adminEndpointCatalog()` contains all 136 entries from the HubSight Admin API v1
 catalog, including method, path, authentication, permission, and target phase.
-`AdminClient::api()` exposes one forward-compatible placeholder method for each
-catalog entry.
+`AdminClient::api()` exposes a callable method for every catalog entry, including
+entries that do not yet have a specialized DTO convenience method.
 
-Catalog methods that have not reached a typed implementation currently emit:
+The generic request shape is:
 
-```text
-SDK_ENDPOINT_NOT_IMPLEMENTED
+```cpp
+client.api()->cameraPatch(QJsonObject{
+    {"path_params", QJsonObject{{"camera_id", "cam_1"}}},
+    {"query", QJsonObject{{"dry_run", true}}},
+    {"body", QJsonObject{{"name", "Front Door"}}},
+    {"timeout_ms", 15000},
+    {"idempotency_key", "camera-update-1"},
+});
 ```
 
-They deliberately do not send a network request. The catalog is therefore the
-complete planned API surface, while typed clients represent the endpoints that
-are currently implemented and validated.
+All HTTP catalog methods now reach the native Admin transport. Missing path
+parameters, unsupported methods, malformed JSON responses, transport failures,
+and HTTP errors are reported through `AdminError`; successful calls emit
+`responseReceived` and `operationCompleted`. The WebSocket catalog entry returns
+`USE_REALTIME_CLIENT` so callers cannot accidentally send a relay URL through the
+HTTP client.
 
 ## Diagnostics and debugging
 
@@ -489,9 +522,11 @@ verify:
 - `.hscfg` validation and single-source endpoint configuration;
 - Standard relay topic, reconnect, replay, and security behavior;
 - Socket.IO handshake, heartbeat, events, acknowledgements, and security events;
-- typed live, archive, notification, and WebRTC foundation behavior;
+- typed account, camera-management, live, archive, member/upload, identity,
+  integration, system-operation, and notification behavior;
+- generic routing for all 135 HTTP catalog entries plus explicit realtime routing;
+- JSON request validation and multipart/binary upload behavior;
 - application-facade diagnostics and transport ownership;
-- complete endpoint catalog/stub behavior;
 - maintenance responses and retry metadata.
 
 Run the suite with:

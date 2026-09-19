@@ -3,6 +3,7 @@
 #include "../admin_transport.h"
 #include "../resource_helpers.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QNetworkAccessManager>

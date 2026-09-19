@@ -16,8 +16,8 @@ class AdminClient;
 struct TransportRequest;
 struct TransportResponse;
 
-// Typed REST client for the deferred permissions, roles, users, and
-// administrator-managed user-session endpoints in the Admin API catalog.
+// Typed REST client for permissions, roles, users, and administrator-managed
+// user-session endpoints in the Admin API catalog.
 class HUBSIGHT_ADMIN_EXPORT IdentityClient final : public QObject {
   Q_OBJECT
 

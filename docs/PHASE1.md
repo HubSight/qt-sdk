@@ -20,15 +20,16 @@ are not supported.
 `adminEndpointCatalog()` contains all 136 entries from
 `ADMIN_API_V1_ENDPOINT_CATALOG.md`, including HTTP method, path template,
 authentication requirement, permission, and target phase. `AdminClient::api()`
-exposes one placeholder method per entry. These methods currently emit
-`SDK_ENDPOINT_NOT_IMPLEMENTED` and deliberately do not send network requests;
-future phases will replace the generic `QJsonObject` request with typed DTOs,
-transport calls, validation, and concurrency/idempotency behavior.
+exposes a callable generic method for every catalog entry. HTTP entries resolve
+path/query/body fields and send real requests through the shared Admin transport;
+there is no `SDK_ENDPOINT_NOT_IMPLEMENTED` fallback anymore.
 
-The catalog also records the planned standard JSON WebSocket relay at
-`/relay/admin/v1`. It is separate from the Socket.IO transport foundation
-because the current Admin relay contract explicitly specifies standard JSON
-WebSocket, not Socket.IO.
+Typed clients now cover all REST resource groups in the catalog: account/profile,
+system operations, camera management, members/faces/uploads, identity,
+integrations, and the earlier live/archive/notification clients. The generic
+client remains useful for forward-compatible fields and server additions. The
+catalog's `/relay/admin/v1` entry is intentionally handled by the Standard JSON
+relay domain, not by HTTP.
 
 ### Transport
 
@@ -144,13 +145,14 @@ end-to-end use against that implementation. Native media playback, range
 seeking, thumbnail cache, and WebRTC/media integration are not part of this
 slice.
 
-### Initial Phase 2 notifications REST slice
+### Complete typed Admin REST resource coverage
 
-`AdminClient::notifications()` implements all 11 normative notification and
-push-configuration endpoints. It provides typed notification/page/config models,
-protected dual-auth requests, cursor/filter query construction, JSON mutation
-payloads, explicit destructive-action confirmations, and empty-body success
-handling for delete-style responses.
+The typed Admin resource layer now covers all HTTP endpoint families in the
+catalog. In addition to the live/archive/notification slices described above,
+`AccountClient`, `SystemOperationsClient`, `CameraManagementClient`,
+`MemberClient`, `IdentityClient`, and `IntegrationClient` provide validation,
+request correlation, typed response DTOs, and domain-specific signals. `MemberClient`
+supports JSON/presign flows plus multipart image and binary avatar payloads.
 
 The SDK uses the Admin action paths and current push-subscription resource from
 the catalog. The current sibling backend still exposes legacy routes such as
@@ -209,21 +211,20 @@ connections by `session_id`. No media engine is bundled, and an adapter is
 required before offer/answer or ICE operations can run. Details are in
 [`WEBRTC_FOUNDATION.md`](WEBRTC_FOUNDATION.md).
 
-### Read-only resources
+### Resource surface and remaining scope
 
-`SystemClient` currently covers `status`, `capabilities`, and `settings`.
-`CameraClient` covers cursor/limit list and detail requests, including the
-status/configuration fields currently returned by the backend. Mutations are
-omitted until the endpoint DTOs and idempotency/concurrency behavior are
-finalized across the Admin API.
+`SystemClient` covers `status`, `capabilities`, and `settings`; `CameraClient`
+covers camera list/detail reads; their mutation and operational companions are
+provided by `SystemOperationsClient` and `CameraManagementClient`. All catalog
+HTTP methods are therefore available either through a typed resource client or
+through `AdminClient::api()`.
 
-## Intentionally deferred
+The following are intentionally outside the Admin REST endpoint completion:
 
 - WebRTC media-engine integration/libdatachannel, FFmpeg, hardware decoding,
   and live matrix;
 - asynchronous thumbnail cache, native archive playback, and range-seeking;
-- camera mutation, PTZ, discovery, members, access governance;
-- passkey/WebAuthn login options and verification;
+- Socket.IO polling fallback and binary attachments;
 - domain-specific `.hscfg` profile management beyond the Admin `admin_api`
   profile;
 - QML controls and sample VMS UI.
@@ -236,8 +237,9 @@ headers, absence of cookie/query credentials, HTTP protocol fallback reporting,
 Socket.IO handshake/event/ack handling, Socket.IO room/domain events and
 security invalidation, typed live, archive, and notification REST slices,
 `.hscfg` profile rejection, application-facade auth/diagnostics behavior,
-standard relay transport/domain/replay behavior, the complete endpoint
-registry/stub contract, and the maintenance response.
+standard relay transport/domain/replay behavior, generic endpoint request
+routing, multipart upload, typed live/archive/notification behavior, and the
+maintenance response.
 A machine with Qt 6.6+ is required to configure and execute it. A full HTTP/2
 integration
 test additionally requires a TLS test server with ALPN support; the production

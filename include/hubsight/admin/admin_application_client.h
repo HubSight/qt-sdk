@@ -89,11 +89,18 @@ public:
 
   // Typed resource clients. These expose domain operations, not QNetworkReply
   // or the native HTTP client.
+  AccountClient *account() const;
   SystemClient *system() const;
+  SystemOperationsClient *systemOperations() const;
   CameraClient *cameras() const;
+  CameraManagementClient *cameraManagement() const;
+  IdentityClient *identity() const;
+  IntegrationClient *integrations() const;
+  MemberClient *members() const;
   LiveClient *live() const;
   ArchiveClient *archive() const;
   NotificationClient *notifications() const;
+  AdminEndpointClient *api() const;
 
   // Application-safe diagnostics retained in a bounded in-memory history.
   QVector<SdkDiagnostic> diagnostics() const;

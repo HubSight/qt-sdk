@@ -791,12 +791,36 @@ bool AdminApplicationClient::isRealtimeConnected() const {
   return m_client->relay()->isConnected();
 }
 
+AccountClient *AdminApplicationClient::account() const {
+  return m_client->account();
+}
+
 SystemClient *AdminApplicationClient::system() const {
   return m_client->system();
 }
 
+SystemOperationsClient *AdminApplicationClient::systemOperations() const {
+  return m_client->systemOperations();
+}
+
 CameraClient *AdminApplicationClient::cameras() const {
   return m_client->cameras();
+}
+
+CameraManagementClient *AdminApplicationClient::cameraManagement() const {
+  return m_client->cameraManagement();
+}
+
+IdentityClient *AdminApplicationClient::identity() const {
+  return m_client->identity();
+}
+
+IntegrationClient *AdminApplicationClient::integrations() const {
+  return m_client->integrations();
+}
+
+MemberClient *AdminApplicationClient::members() const {
+  return m_client->members();
 }
 
 LiveClient *AdminApplicationClient::live() const { return m_client->live(); }
@@ -807,6 +831,10 @@ ArchiveClient *AdminApplicationClient::archive() const {
 
 NotificationClient *AdminApplicationClient::notifications() const {
   return m_client->notifications();
+}
+
+AdminEndpointClient *AdminApplicationClient::api() const {
+  return m_client->api();
 }
 
 QVector<SdkDiagnostic> AdminApplicationClient::diagnostics() const {

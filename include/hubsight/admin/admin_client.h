@@ -10,11 +10,17 @@
 #include "realtime/relay_realtime_client.h"
 #include "realtime/socket_io_client.h"
 #include "realtime/socket_io_realtime_client.h"
+#include "resources/account_client.h"
 #include "resources/archive_client.h"
 #include "resources/camera_client.h"
+#include "resources/camera_management_client.h"
+#include "resources/identity_client.h"
+#include "resources/integration_client.h"
 #include "resources/live_client.h"
+#include "resources/member_client.h"
 #include "resources/notification_client.h"
 #include "resources/system_client.h"
+#include "resources/system_operations_client.h"
 #include "secure_storage.h"
 #include "webrtc/webrtc_client.h"
 
@@ -54,8 +60,14 @@ public:
   // Advanced/core API. Normal applications should use
   // AdminApplicationClient, which owns the JWT lifecycle for them.
   AuthManager *auth() const;
+  AccountClient *account() const;
   SystemClient *system() const;
+  SystemOperationsClient *systemOperations() const;
   CameraClient *cameras() const;
+  CameraManagementClient *cameraManagement() const;
+  IdentityClient *identity() const;
+  IntegrationClient *integrations() const;
+  MemberClient *members() const;
   LiveClient *live() const;
   ArchiveClient *archive() const;
   NotificationClient *notifications() const;
@@ -93,8 +105,9 @@ public:
   // registry out of the normal application surface.
   WebRtcClient *webrtc() const;
 
-  // Complete endpoint registry/facade. Calls for endpoints not yet covered by
-  // a typed resource client emit SDK_ENDPOINT_NOT_IMPLEMENTED.
+  // Complete endpoint registry/facade. Typed resource clients are preferred;
+  // this generic client can invoke every catalog endpoint with path/query/body
+  // JSON request fields.
   AdminEndpointClient *api() const;
 
   AdminState state() const;
@@ -116,8 +129,14 @@ private:
   std::unique_ptr<AdminTransport> m_transport;
   SecureStoragePtr m_storage;
   std::unique_ptr<AuthManager> m_auth;
+  std::unique_ptr<AccountClient> m_account;
   std::unique_ptr<SystemClient> m_system;
+  std::unique_ptr<SystemOperationsClient> m_systemOperations;
   std::unique_ptr<CameraClient> m_cameras;
+  std::unique_ptr<CameraManagementClient> m_cameraManagement;
+  std::unique_ptr<IdentityClient> m_identity;
+  std::unique_ptr<IntegrationClient> m_integrations;
+  std::unique_ptr<MemberClient> m_members;
   std::unique_ptr<LiveClient> m_live;
   std::unique_ptr<ArchiveClient> m_archive;
   std::unique_ptr<NotificationClient> m_notifications;

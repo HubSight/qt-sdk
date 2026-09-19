@@ -490,7 +490,161 @@ private slots:
         QJsonObject{{QStringLiteral("camera_id"), QStringLiteral("cam_1")}});
     QCOMPARE(errorSpy.count(), 1);
     QCOMPARE(errorSpy.at(0).at(0).value<AdminError>().serverCode,
-             QStringLiteral("SDK_ENDPOINT_NOT_IMPLEMENTED"));
+             QStringLiteral("MISSING_PATH_PARAMETER"));
+  }
+
+  void everyHttpCatalogEndpointIsCallable() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    AdminClient client;
+    QVERIFY(client.setGatewayUrl(server.url()));
+    client.setApiKey(QStringLiteral("admin-desktop-key"));
+
+    QSignalSpy responseSpy(client.api(),
+                           &AdminEndpointClient::responseReceived);
+    QSignalSpy errorSpy(&client, &AdminClient::errorOccurred);
+    const QJsonObject pathParams{
+        {QStringLiteral("camera_id"), QStringLiteral("cam_1")},
+        {QStringLiteral("session_id"), QStringLiteral("session_1")},
+        {QStringLiteral("recording_id"), QStringLiteral("recording_1")},
+        {QStringLiteral("member_id"), QStringLiteral("member_1")},
+        {QStringLiteral("face_id"), QStringLiteral("face_1")},
+        {QStringLiteral("notification_id"), QStringLiteral("notification_1")},
+        {QStringLiteral("role_id"), QStringLiteral("role_1")},
+        {QStringLiteral("user_id"), QStringLiteral("user_1")},
+        {QStringLiteral("client_id"), QStringLiteral("client_1")},
+        {QStringLiteral("account_id"), QStringLiteral("account_1")},
+        {QStringLiteral("config_id"), QStringLiteral("config_1")},
+        {QStringLiteral("operation_id"), QStringLiteral("operation_1")},
+        {QStringLiteral("job_id"), QStringLiteral("job_1")},
+        {QStringLiteral("passkey_id"), QStringLiteral("passkey_1")}};
+
+    int httpEndpointCount = 0;
+    for (const AdminEndpointDefinition &definition : adminEndpointCatalog()) {
+      if (definition.method == QByteArrayLiteral("WEBSOCKET")) {
+        continue;
+      }
+      ++httpEndpointCount;
+      QJsonObject request{
+          {QStringLiteral("path_params"), pathParams},
+          {QStringLiteral("query"),
+           QJsonObject{{QStringLiteral("cursor"), QStringLiteral("cursor_1")},
+                       {QStringLiteral("limit"), 10}}}};
+      if (definition.method != QByteArrayLiteral("GET") &&
+          definition.method != QByteArrayLiteral("DELETE")) {
+        request.insert(QStringLiteral("body"),
+                       QJsonObject{{QStringLiteral("probe"), true}});
+      }
+      const int previousResponses = responseSpy.count();
+      client.api()->invoke(definition.endpoint, request);
+      QVERIFY2(
+          responseSpy.wait(2000),
+          qPrintable(
+              QStringLiteral("No response for %1").arg(definition.operation)));
+      QCOMPARE(responseSpy.count(), previousResponses + 1);
+      QCOMPARE(responseSpy.last().at(0).value<AdminEndpoint>(),
+               definition.endpoint);
+    }
+
+    QCOMPARE(httpEndpointCount, 135);
+    QCOMPARE(responseSpy.count(), httpEndpointCount);
+    QCOMPARE(errorSpy.count(), 0);
+  }
+
+  void genericEndpointClientSendsCatalogRequest() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    AdminClient client;
+    QVERIFY(client.setGatewayUrl(server.url()));
+    client.setApiKey(QStringLiteral("admin-desktop-key"));
+
+    QSignalSpy responseSpy(client.api(),
+                           &AdminEndpointClient::responseReceived);
+    QSignalSpy completionSpy(client.api(),
+                             &AdminEndpointClient::operationCompleted);
+    QSignalSpy errorSpy(&client, &AdminClient::errorOccurred);
+
+    client.api()->cameraPatch(QJsonObject{
+        {QStringLiteral("path_params"),
+         QJsonObject{{QStringLiteral("camera_id"), QStringLiteral("cam 1")}}},
+        {QStringLiteral("query"),
+         QJsonObject{{QStringLiteral("dry_run"), true},
+                     {QStringLiteral("note"), QStringLiteral("front door")}}},
+        {QStringLiteral("body"),
+         QJsonObject{{QStringLiteral("name"), QStringLiteral("Front Door")}}},
+        {QStringLiteral("timeout_ms"), 5000},
+        {QStringLiteral("idempotency_key"), QStringLiteral("idem-1")}});
+
+    QVERIFY(completionSpy.wait(2000));
+    QCOMPARE(errorSpy.count(), 0);
+    QCOMPARE(responseSpy.count(), 1);
+    QCOMPARE(responseSpy.at(0).at(0).value<AdminEndpoint>(),
+             AdminEndpoint::CameraPatch);
+    QCOMPARE(responseSpy.at(0).at(1).toString(), QStringLiteral("cameraPatch"));
+    QCOMPARE(completionSpy.at(0).at(0).toString(),
+             QStringLiteral("cameraPatch"));
+
+    const QByteArray request = server.request();
+    QVERIFY(request.startsWith(
+        "PATCH /api/admin/v1/cameras/cam%201?dry_run=true&note=front%20door "
+        "HTTP/1.1"));
+    QVERIFY(request.toLower().contains("x-api-key: admin-desktop-key"));
+    QVERIFY(request.toLower().contains("idempotency-key: idem-1"));
+    QVERIFY(request.contains("\"name\":\"Front Door\""));
+  }
+
+  void genericEndpointClientRejectsRealtimeCatalogEntry() {
+    AdminClient client;
+    QSignalSpy errorSpy(&client, &AdminClient::errorOccurred);
+
+    client.api()->realtimeRelay();
+
+    QCOMPARE(errorSpy.count(), 1);
+    QCOMPARE(errorSpy.at(0).at(0).value<AdminError>().serverCode,
+             QStringLiteral("USE_REALTIME_CLIENT"));
+  }
+
+  void memberClientSendsMultipartImageUpload() {
+    TestHttpServer server;
+    QVERIFY(server.listen());
+
+    AdminClient client;
+    QVERIFY(client.setGatewayUrl(server.url()));
+    client.setApiKey(QStringLiteral("admin-desktop-key"));
+
+    QSignalSpy uploadSpy(client.members(), &MemberClient::imagesUploaded);
+    QSignalSpy errorSpy(&client, &AdminClient::errorOccurred);
+    const QVector<ImageUploadPart> parts{ImageUploadPart{
+        QStringLiteral("files"), QStringLiteral("face.jpg"),
+        QStringLiteral("image/jpeg"), QByteArray("jpeg-bytes")}};
+    client.members()->uploadImages(
+        parts,
+        QJsonObject{{QStringLiteral("member_id"), QStringLiteral("member-1")}});
+
+    QVERIFY(uploadSpy.wait(2000));
+    QCOMPARE(errorSpy.count(), 0);
+
+    const QByteArray request = server.request();
+    QVERIFY(request.startsWith("POST /api/admin/v1/uploads/images HTTP/1.1"));
+    QVERIFY(request.toLower().contains("content-type: multipart/form-data;"));
+    QVERIFY(request.contains("name=\"metadata\""));
+    QVERIFY(request.contains("filename=\"face.jpg\""));
+    QVERIFY(request.contains("Content-Type: image/jpeg"));
+    QVERIFY(request.contains("jpeg-bytes"));
+
+    server.resetRequest();
+    QSignalSpy avatarSpy(client.members(), &MemberClient::avatarUpdated);
+    client.members()->putAvatar(QStringLiteral("member-1"),
+                                QByteArray("png-bytes"),
+                                QStringLiteral("image/png"));
+    QVERIFY(avatarSpy.wait(2000));
+    const QByteArray avatarRequest = server.request();
+    QVERIFY(avatarRequest.startsWith(
+        "PUT /api/admin/v1/members/member-1/avatar HTTP/1.1"));
+    QVERIFY(avatarRequest.toLower().contains("content-type: image/png"));
+    QVERIFY(avatarRequest.contains("png-bytes"));
   }
 
   void statusUsesAdminHeadersAndNamespace() {

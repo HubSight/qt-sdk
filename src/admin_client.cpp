@@ -125,10 +125,22 @@ void AdminClient::initialize(SecureStoragePtr storage) {
   m_transport = std::make_unique<AdminTransport>(this);
   m_auth = std::unique_ptr<AuthManager>(
       new AuthManager(m_transport.get(), m_storage, this));
+  m_account = std::unique_ptr<AccountClient>(
+      new AccountClient(m_transport.get(), this));
   m_system =
       std::unique_ptr<SystemClient>(new SystemClient(m_transport.get(), this));
+  m_systemOperations = std::unique_ptr<SystemOperationsClient>(
+      new SystemOperationsClient(m_transport.get(), this));
   m_cameras =
       std::unique_ptr<CameraClient>(new CameraClient(m_transport.get(), this));
+  m_cameraManagement = std::unique_ptr<CameraManagementClient>(
+      new CameraManagementClient(m_transport.get(), this));
+  m_identity = std::unique_ptr<IdentityClient>(
+      new IdentityClient(m_transport.get(), this));
+  m_integrations = std::unique_ptr<IntegrationClient>(
+      new IntegrationClient(m_transport.get(), this));
+  m_members =
+      std::unique_ptr<MemberClient>(new MemberClient(m_transport.get(), this));
   m_live = std::unique_ptr<LiveClient>(new LiveClient(m_transport.get(), this));
   m_archive = std::unique_ptr<ArchiveClient>(
       new ArchiveClient(m_transport.get(), this));
@@ -182,7 +194,19 @@ void AdminClient::initialize(SecureStoragePtr storage) {
           });
   connect(m_system.get(), &SystemClient::errorOccurred, this,
           [this](const AdminError &error) { handleError(error); });
+  connect(m_account.get(), &AccountClient::errorOccurred, this,
+          [this](const AdminError &error) { handleError(error); });
+  connect(m_systemOperations.get(), &SystemOperationsClient::errorOccurred,
+          this, [this](const AdminError &error) { handleError(error); });
   connect(m_cameras.get(), &CameraClient::errorOccurred, this,
+          [this](const AdminError &error) { handleError(error); });
+  connect(m_cameraManagement.get(), &CameraManagementClient::errorOccurred,
+          this, [this](const AdminError &error) { handleError(error); });
+  connect(m_identity.get(), &IdentityClient::errorOccurred, this,
+          [this](const AdminError &error) { handleError(error); });
+  connect(m_integrations.get(), &IntegrationClient::errorOccurred, this,
+          [this](const AdminError &error) { handleError(error); });
+  connect(m_members.get(), &MemberClient::errorOccurred, this,
           [this](const AdminError &error) { handleError(error); });
   connect(m_live.get(), &LiveClient::errorOccurred, this,
           [this](const AdminError &error) { handleError(error); });
@@ -284,9 +308,27 @@ SecureStoragePtr AdminClient::secureStorage() const { return m_storage; }
 
 AuthManager *AdminClient::auth() const { return m_auth.get(); }
 
+AccountClient *AdminClient::account() const { return m_account.get(); }
+
 SystemClient *AdminClient::system() const { return m_system.get(); }
 
+SystemOperationsClient *AdminClient::systemOperations() const {
+  return m_systemOperations.get();
+}
+
 CameraClient *AdminClient::cameras() const { return m_cameras.get(); }
+
+CameraManagementClient *AdminClient::cameraManagement() const {
+  return m_cameraManagement.get();
+}
+
+IdentityClient *AdminClient::identity() const { return m_identity.get(); }
+
+IntegrationClient *AdminClient::integrations() const {
+  return m_integrations.get();
+}
+
+MemberClient *AdminClient::members() const { return m_members.get(); }
 
 LiveClient *AdminClient::live() const { return m_live.get(); }
 

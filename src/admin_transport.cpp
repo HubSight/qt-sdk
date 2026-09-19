@@ -255,8 +255,10 @@ AdminTransport::makeRequest(const TransportRequest &request, quint64 requestId,
                                 request.idempotencyKey.trimmed().toUtf8());
   }
   if (!request.body.isEmpty()) {
-    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader,
-                             QStringLiteral("application/json"));
+    networkRequest.setRawHeader("Content-Type",
+                                request.contentType.isEmpty()
+                                    ? QByteArrayLiteral("application/json")
+                                    : request.contentType);
   }
   Q_UNUSED(requestId)
   return networkRequest;

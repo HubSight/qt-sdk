@@ -16,8 +16,8 @@ class AdminClient;
 struct TransportRequest;
 struct TransportResponse;
 
-// Typed REST client for the deferred account, profile, session, 2FA, and
-// passkey endpoints in the Admin API catalog. It does not change AuthManager's
+// Typed REST client for account, profile, session, 2FA, and passkey endpoints
+// in the Admin API catalog. It does not change AuthManager's
 // token or secure-storage lifecycle; passkey login results are reported only.
 class HUBSIGHT_ADMIN_EXPORT AccountClient final : public QObject {
   Q_OBJECT

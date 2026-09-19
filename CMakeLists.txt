@@ -83,8 +83,20 @@ set(HUBSIGHT_ADMIN_PUBLIC_HEADERS
     include/hubsight/admin/sdk_diagnostics.h
     include/hubsight/admin/config/hscfg_types.h
     include/hubsight/admin/config/hscfg_importer.h
+    include/hubsight/admin/resources/account_types.h
+    include/hubsight/admin/resources/account_client.h
     include/hubsight/admin/resources/camera_client.h
+    include/hubsight/admin/resources/camera_management_types.h
+    include/hubsight/admin/resources/camera_management_client.h
+    include/hubsight/admin/resources/identity_types.h
+    include/hubsight/admin/resources/identity_client.h
+    include/hubsight/admin/resources/integration_types.h
+    include/hubsight/admin/resources/integration_client.h
+    include/hubsight/admin/resources/member_types.h
+    include/hubsight/admin/resources/member_client.h
     include/hubsight/admin/resources/system_client.h
+    include/hubsight/admin/resources/system_operations_types.h
+    include/hubsight/admin/resources/system_operations_client.h
     include/hubsight/admin/resources/live_types.h
     include/hubsight/admin/resources/live_client.h
     include/hubsight/admin/resources/archive_types.h
@@ -115,8 +127,20 @@ set(HUBSIGHT_ADMIN_SOURCES
     src/sdk_diagnostics.cpp
     src/config/hscfg_types.cpp
     src/config/hscfg_importer.cpp
+    src/resources/account_types.cpp
+    src/resources/account_client.cpp
     src/resources/camera_client.cpp
+    src/resources/camera_management_types.cpp
+    src/resources/camera_management_client.cpp
+    src/resources/identity_types.cpp
+    src/resources/identity_client.cpp
+    src/resources/integration_types.cpp
+    src/resources/integration_client.cpp
+    src/resources/member_types.cpp
+    src/resources/member_client.cpp
     src/resources/system_client.cpp
+    src/resources/system_operations_types.cpp
+    src/resources/system_operations_client.cpp
     src/resources/live_types.cpp
     src/resources/live_client.cpp
     src/resources/archive_types.cpp

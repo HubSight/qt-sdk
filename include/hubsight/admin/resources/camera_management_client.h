@@ -16,8 +16,8 @@ class AdminClient;
 struct TransportRequest;
 struct TransportResponse;
 
-// Typed REST client for the deferred camera and camera-discovery endpoints in
-// the Admin API catalog. Camera list/detail reads remain on CameraClient.
+// Typed REST client for camera mutation and camera-discovery endpoints in the
+// Admin API catalog. Camera list/detail reads remain on CameraClient.
 class HUBSIGHT_ADMIN_EXPORT CameraManagementClient final : public QObject {
   Q_OBJECT
 
