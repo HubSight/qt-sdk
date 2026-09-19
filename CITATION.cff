@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use HubSight Admin SDK for Qt/C++ in research or software, please cite this repository."
+title: "HubSight Admin SDK for Qt/C++"
+version: "0.1.0"
+date-released: 2026-09-19
+type: software
+abstract: "Desktop C++20/Qt SDK for HubSight Admin REST, authentication, realtime, uploads, and WebRTC signaling integration."
+authors:
+  - name: "HubSight"
+    affiliation: "HubSight"
+repository-code: "https://github.com/HubSight/qt-sdk"
+repository-artifact: "https://github.com/HubSight/qt-sdk/releases"
+license: MIT
+keywords:
+  - Qt
+  - C++
+  - desktop
+  - REST API
+  - WebSocket
+  - WebRTC

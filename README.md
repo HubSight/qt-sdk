@@ -1,7 +1,17 @@
 # HubSight Admin SDK for Qt/C++
 
+[![Build](https://github.com/HubSight/qt-sdk/actions/workflows/build.yml/badge.svg)](https://github.com/HubSight/qt-sdk/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
+[![Qt 6.6+](https://img.shields.io/badge/Qt-6.6%2B-41CD52.svg)](https://www.qt.io/)
+
 Desktop SDK for building HubSight professional Admin applications with Qt 6 and
 C++20.
+
+This is an open-source project maintained on GitHub. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for development guidelines,
+[`SECURITY.md`](SECURITY.md) for vulnerability reporting, and
+[`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 The SDK owns the native transport and session plumbing so normal application code
 does not need to implement or directly manage:
@@ -552,6 +562,14 @@ require a separate direct/h2c mode.
   JSON relay contract and replay/reconciliation behavior.
 - [`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md) — backend-neutral
   WebRTC adapter boundary.
+- [`docs/BACKEND_IMPLEMENTATION_PROMPT.md`](docs/BACKEND_IMPLEMENTATION_PROMPT.md)
+  — backend compatibility and integration checklist.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — development workflow and pull requests.
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community participation standards.
+- [`SECURITY.md`](SECURITY.md) — private vulnerability reporting policy.
+- [`SUPPORT.md`](SUPPORT.md) — support and issue-reporting guidance.
+- [`CHANGELOG.md`](CHANGELOG.md) — version history.
+- [`CITATION.cff`](CITATION.cff) — citation metadata.
 
 The source contract is maintained in the HubSight repository documents
 referenced by `docs/PHASE1.md`.

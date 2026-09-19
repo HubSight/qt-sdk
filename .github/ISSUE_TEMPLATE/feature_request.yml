@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What user or integration problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API or behavior you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Affected platforms
+      multiple: true
+      options:
+        - Windows amd64
+        - Windows arm64
+        - Linux amd64
+        - Linux arm64
+        - macOS arm64
+        - All desktop platforms
+    validations:
+      required: true
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security confirmation
+      options:
+        - label: This request does not disclose a security vulnerability or private data.
+          required: true

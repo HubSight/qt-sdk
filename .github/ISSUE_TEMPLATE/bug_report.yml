@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in the SDK.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, JWTs, refresh tokens, passwords, `.hscfg` PINs,
+        private URLs, or customer data. Use synthetic values and redact logs.
+  - type: input
+    id: version
+    attributes:
+      label: SDK version or commit
+      placeholder: "0.1.0 or abc1234"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: "macOS 15 arm64, Windows 11 amd64, Linux arm64"
+    validations:
+      required: true
+  - type: input
+    id: toolchain
+    attributes:
+      label: Qt, compiler, and CMake versions
+      placeholder: "Qt 6.8, Apple Clang 17, CMake 3.30"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest safe reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics and logs
+      description: Remove credentials, tokens, private URLs, and sensitive payloads.
