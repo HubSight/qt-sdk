@@ -224,10 +224,8 @@ finalized across the Admin API.
 - asynchronous thumbnail cache, native archive playback, and range-seeking;
 - camera mutation, PTZ, discovery, members, access governance;
 - passkey/WebAuthn login options and verification;
-- domain-specific `.hscfg` profile management and persistent secure-storage
-  adapters (the in-memory Admin importer is delivered; storage policy remains
-  application-owned);
-- production Keychain/Credential Manager/Secret Service adapters;
+- domain-specific `.hscfg` profile management beyond the Admin `admin_api`
+  profile;
 - QML controls and sample VMS UI.
 
 ## Validation

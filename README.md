@@ -1,254 +1,463 @@
 # HubSight Admin SDK for Qt/C++
 
-Phase 1 foundation for the HubSight professional Admin desktop client.
+Desktop SDK for building HubSight professional Admin applications with Qt 6 and
+C++20.
 
-Supported deployment targets are Windows, macOS, and Linux desktop only. Mobile
-and tablet environments (Android, iOS, and similar targets) are intentionally
-out of scope.
+The SDK owns the native transport and session plumbing so normal application code
+does not need to implement or directly manage:
 
-## Scope
+- Qt's native HTTP request lifecycle;
+- JWT access/refresh-token rotation;
+- Socket.IO or standard JSON WebSocket framing;
+- reconnect, replay, and realtime authentication;
+- WebRTC peer-connection state management.
 
-This initial release implements the REST/auth foundation described by the
-HubSight Admin API plan:
+Supported targets are **Windows, macOS, and Linux desktop**. Android, iOS,
+mobile, and tablet deployments are intentionally out of scope.
 
-- Qt 6.6+ (Core, Network, and WebSockets) and C++20 CMake library;
-- dedicated gateway namespace: `/api/admin/v1`;
-- API-key-only bootstrap requests and dual-auth protected requests;
-- in-memory access token plus pluggable secure storage for refresh tokens;
-- username/password login, 2FA verification, refresh, logout, and `/auth/me`;
-- system status/capabilities/settings clients;
-- cursor-based, read-only camera list/detail clients;
-- typed live capabilities, camera discovery/status, and WebRTC session
-  lifecycle REST client;
-- typed archive timeline, available-days, recording metadata, and short-lived
-  playback/download/thumbnail URL REST client;
-- typed notifications, destructive notification actions, and push configuration
-  REST client;
-- typed error, maintenance, state, token, user, and resource models;
-- complete 136-entry Admin API v1 endpoint catalog;
-- `AdminClient::api()` facade with one public placeholder method per catalog
-  endpoint; deferred calls emit `SDK_ENDPOINT_NOT_IMPLEMENTED` until their
-  phase is implemented;
-- no cookies, `X-Client-ID`, query-string credentials, or legacy App API
-  fallback;
-- HTTP/2 negotiation over HTTPS/TLS ALPN with automatic HTTP/1.1 fallback;
-  the SDK does not force direct HTTP/2/h2c and applications do not need to
-  select a protocol for ordinary requests.
+## Current status
 
-The WebRTC media engine, FFmpeg, QML views, thumbnail caching, archive
-playback integration, and CRUD resources are intentionally staged for later
-phases. The Admin `.hscfg` v2 importer, a standard JSON WebSocket relay domain
-layer, and an optional Socket.IO compatibility domain layer are included;
-Socket.IO must not be used for the Admin JSON relay. See
-[`docs/HSCFG_IMPORT.md`](docs/HSCFG_IMPORT.md),
-[`docs/RELAY_FOUNDATION.md`](docs/RELAY_FOUNDATION.md),
-[`docs/PHASE1.md`](docs/PHASE1.md), and
-[`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).
+The repository contains the REST/auth foundation, the complete Admin API v1
+catalog, the normative Admin realtime relay, the Socket.IO compatibility layer,
+and the backend-neutral WebRTC foundation. Initial typed Phase 2 REST slices for
+live, archive, and notifications are also available.
+
+The SDK is usable for desktop application integration, but it is not yet a full
+media/VMS UI product. Native WebRTC media engines, playback/rendering, caching,
+and several Admin CRUD domains remain separate follow-up work.
+
+## Requirements
+
+- Qt 6.6 or newer:
+    - Qt Core;
+    - Qt Network;
+    - Qt WebSockets;
+    - Qt Test when building tests.
+- C++20 compiler.
+- CMake 3.21 or newer.
+- Windows, macOS, or Linux desktop.
+
+The installed CMake target is:
+
+```cmake
+HubSight::AdminSdk
+```
+
+For the supported Windows, Linux, and macOS architecture matrix, see
+[`docs/BUILD_CROSS_PLATFORM.md`](docs/BUILD_CROSS_PLATFORM.md).
+
+## Current status
 
 ## Build
 
-Qt 6.6 or newer is required.
-
 ```sh
-cmake -S . -B build -DHUBSIGHT_ADMIN_BUILD_TESTS=ON
-cmake --build build
+cmake -S . -B build \
+  -DHUBSIGHT_ADMIN_BUILD_TESTS=ON
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-The installed target is `HubSight::AdminSdk`.
+### CMake options
 
-`AdminClient::api()` is the forward-compatible endpoint surface. Its request
-argument is a generic `QJsonObject` placeholder for future typed path/query/body
-DTOs; it does not send a network request yet. The canonical method/path/auth/
-permission/phase metadata is available through `adminEndpointCatalog()`.
+| Option                                         |            Default | Description                                                                                            |
+| ---------------------------------------------- | -----------------: | ------------------------------------------------------------------------------------------------------ |
+| `HUBSIGHT_ADMIN_BUILD_TESTS`                   | `${BUILD_TESTING}` | Build the Qt Test suite.                                                                               |
+| `HUBSIGHT_ADMIN_ENABLE_HSCFG_IMPORT`           |               `ON` | Enable the native `.hscfg` importer when OpenSSL Crypto, libargon2, libzip, and libyaml are available. |
+| `HUBSIGHT_ADMIN_ENABLE_DESKTOP_SECURE_STORAGE` |               `ON` | Enable Windows Credential Manager, macOS Keychain, or Linux Secret Service/libsecret integration.      |
 
-## Recommended application usage
+The `.hscfg` importer is optional at configure time. If its dependencies are
+not available, the SDK still builds but returns
+`HscfgImportError::ImporterUnavailable` instead of accepting an unverified
+configuration file.
 
-`AdminApplicationClient` is the app-facing facade. It hides the native HTTP
-client, JWT access/refresh-token lifecycle, Socket.IO compatibility transport,
-and WebRTC session registry. The application uses typed resources and the
-normative Standard JSON relay domain instead of selecting transports itself.
-JWT refresh is scheduled internally from `expires_in`; foreground code can
-still call `refreshSession()` when recovering from sleep/network changes.
+Desktop secure storage is also detected automatically. Linux support requires
+`libsecret-1`. When the OS vault is unavailable, the default application facade
+fails closed; it never falls back to plaintext storage.
+
+## Recommended application API
+
+Use `AdminApplicationClient` for normal application and UI code. It provides:
+
+- one high-level configuration entry point;
+- automatic JWT refresh based on `expires_in`;
+- optional 2FA without exposing the pre-auth token;
+- typed system, camera, live, archive, and notification clients;
+- normative Standard JSON realtime through `realtime()`;
+- bounded, sanitized diagnostics;
+- no `QNetworkReply`, `AuthManager`, `SocketIoClient`, `WebRtcClient`, or native
+  transport objects in the normal app-facing surface.
 
 ```cpp
 #include <hubsight/admin/hubsight_admin.h>
 
+#include <QDebug>
 #include <QJsonDocument>
+#include <QObject>
+#include <QUrl>
 
 using namespace HubSight::Admin;
 
 AdminApplicationClient client;
-client.setDiagnosticLoggingEnabled(true);
 client.setAutoConnectRealtime(true);
+client.setDiagnosticLoggingEnabled(true);
 
 QObject::connect(&client, &AdminApplicationClient::twoFactorRequired,
                  [&client] {
+                     // Obtain the code from the UI. The pre-auth token stays
+                     // inside the SDK.
                      client.verifyTwoFactor(QStringLiteral("123456"));
                  });
+
 QObject::connect(&client, &AdminApplicationClient::authenticated,
                  [](AdminUser user) {
                      qInfo() << "Signed in as" << user.username;
                  });
+
 QObject::connect(&client, &AdminApplicationClient::diagnosticOccurred,
                  [](SdkDiagnostic diagnostic) {
                      qInfo().noquote()
                          << QJsonDocument(diagnostic.toJson()).toJson();
                  });
 
-client.configure(QUrl{"https://gateway.example.com"},
-                 QStringLiteral("admin-desktop-key"));
+if (!client.configure(QUrl{"https://gateway.example.com"},
+                      QStringLiteral("admin-desktop-key"))) {
+    // Handle client.errorOccurred or inspect client.lastDiagnostic().
+    return;
+}
+
 client.realtime()->subscribeTopic(QStringLiteral("camera.updated"));
 client.signIn(QStringLiteral("admin"), QStringLiteral("password"));
 ```
 
-For production, prefer `importHscfgFile()` so the validated `.hscfg` profile
-configures HTTP, Standard relay, and WebRTC endpoints atomically. The SDK keeps
-the access token in memory and persists refresh tokens only through the
-operating system credential vault: Windows Credential Manager, macOS Keychain,
-or Linux Secret Service/libsecret. The default `DesktopSecureStorage` fails
-closed when the platform vault is unavailable; there is no plaintext fallback.
-`InMemorySecureStorage` is available only when explicitly injected for tests or
-short-lived development processes.
+For a production deployment, prefer importing a validated Admin `.hscfg` profile:
 
-`AdminClient` remains available as an advanced/core API. Applications normally
-do not need to access `AuthManager`, `SocketIoClient`, `WebRtcClient`,
-`QNetworkReply`, or any native transport object. Missing/invalid native media
-integration is surfaced through sanitized diagnostics rather than requiring the
-UI layer to inspect WebRTC internals.
+```cpp
+AdminApplicationClient client;
 
-For low-level transport observability, `AdminClient::requestCompleted` reports
-the operation and protocol actually used (`HttpProtocol::Http2` or
-`HttpProtocol::Http1_1`). HTTPS gateways negotiate HTTP/2 through ALPN when
-available; gateways without HTTP/2 support, failed ALPN negotiation, and
-loopback HTTP test servers use HTTP/1.1 automatically.
+if (!client.importHscfgFile(QStringLiteral("admin.hscfg"),
+                            QStringLiteral("123456"))) {
+    // Handle client.errorOccurred and sanitized diagnostics.
+    return;
+}
 
-## `.hscfg` single-source configuration
+client.signIn(QStringLiteral("admin"), QStringLiteral("password"));
+```
 
-`AdminApplicationClient::importHscfg()` and `importHscfgFile()` (or the
-corresponding advanced `AdminClient` methods) accept only the Admin
-variant (`HSCFG\x02`, format `2.0`, profile `admin_api`). On a successful
-import, the validated profile atomically supplies:
+The facade also exposes:
 
-- the HTTP gateway/API root and API key;
-- the standard JSON relay origin/path and the separate Socket.IO foundation;
-- the WebRTC media/signaling endpoint source and media port.
+```cpp
+client.refreshSession();       // Usually automatic; useful after resume.
+client.signOut();
+client.connectRealtime();
+client.disconnectRealtime();
+client.system();
+client.cameras();
+client.live();
+client.archive();
+client.notifications();
+```
 
-The decrypted archive and PIN are kept in memory only. The API key is sent as
-`X-API-Key`, never placed in a URL or query string. Native `.hscfg` support is
-enabled automatically when OpenSSL Crypto, libargon2, libzip, and libyaml are
-available; otherwise the API returns `HSCFG_IMPORTER_UNAVAILABLE` without
-silently accepting an unverified file. See
-[`docs/HSCFG_IMPORT.md`](docs/HSCFG_IMPORT.md).
+`AdminClient` remains available as an advanced/core API for integrations that
+need direct access to lower-level clients. Its native transport and
+`AuthManager` APIs are intentionally more exposed and require more application
+responsibility.
 
-## Socket.IO base
+## Configuration: `.hscfg` as the single source of truth
 
-`AdminClient::realtime()` exposes a transport-level `SocketIoClient`. It
-supports Engine.IO v4 over WebSocket and the Socket.IO v4 foundation needed by
-later domain clients:
+The Admin `.hscfg` v2 importer is the preferred configuration path. It accepts
+only the Admin profile:
 
-- Engine.IO open/close, ping/pong, and heartbeat timeout;
-- namespace connection and configurable Socket.IO auth payload;
-- JSON events, outbound acknowledgement IDs, and explicit replies to
-  server-requested acknowledgements;
-- reconnect with bounded exponential backoff;
-- WebSocket handshake headers without query-string credentials.
+- magic: `HSCFG\x02`;
+- format: `2.0`;
+- profile: `admin_api`;
+- API namespace: `/api/admin/v1`;
+- Standard realtime namespace: `/relay/admin/v1`;
+- authentication: `bearer_jwt_plus_api_key`;
+- audience: `admin_desktop` / `admin_api`.
 
-The client defaults to `/socket.io/`, does not implement polling or binary event
-attachments yet, and is not connected automatically. When accessed through
-`AdminClient`, the configured API key and current access token are mirrored to
-WebSocket handshake headers; an active realtime connection is re-established
-when the access token rotates. Deployments using a custom relay path can call
-`setPath()` before `connectToServer()`.
+After successful validation and decryption, the profile supplies the endpoint
+configuration for:
 
-### Socket.IO realtime domain layer
+- HTTP Admin API;
+- normative Standard JSON relay;
+- Socket.IO compatibility transport;
+- WebRTC signaling/media endpoint sources.
 
-`AdminClient::socketIoRealtime()` adds the backend-compatible domain layer on top
-of `AdminClient::realtime()`:
+The import is applied as one SDK-level configuration operation. Existing auth,
+HTTP requests, realtime connections, and WebRTC sessions are invalidated before
+the new configuration is applied.
 
-- `subscribeRoom()`/`unsubscribeRoom()` manage additional rooms and emit room
-  lifecycle signals after server acknowledgement;
-- desired rooms are automatically rejoined after a successful reconnect;
-- generic `RealtimeEvent` delivery is routed into typed camera, notification,
-  pool, NVR, member, vision, and operation signals;
-- `session:revoked` and `auth:force_logout` invalidate the local Admin session,
-  close WebRTC sessions, and disconnect the realtime transports through the
-  existing `AdminClient` security path.
+Security properties:
 
-The backend-created user/role/session rooms are not duplicated by this layer.
-This API is for deployments exposing the compatible Socket.IO gateway (currently
-`/relay`). The normative Admin realtime contract remains
-`AdminClient::relay()` using plain JSON WebSocket at `/relay/admin/v1`; it does
-not use Socket.IO framing.
+- the PIN and decrypted archive remain memory-only;
+- API keys are sent in `X-API-Key`, never in URLs or query strings;
+- URLs containing user-info, query credentials, or fragments are rejected;
+- production endpoints must use HTTPS/WSS; loopback HTTP/WS is allowed only for
+  local tests;
+- content hashes are checked and Ed25519 verification can be required by
+  configuring a trusted public key and full-integrity mode.
 
-## Standard JSON relay
+See [`docs/HSCFG_IMPORT.md`](docs/HSCFG_IMPORT.md) for the container format,
+native dependencies, and integrity policy.
 
-`AdminClient::relay()` exposes the transport and
-`AdminClient::relayRealtime()` exposes its typed domain layer. Both use the
-normative `/relay/admin/v1` endpoint with ordinary JSON WebSocket frames: no
-Engine.IO/Socket.IO framing, no rooms, and no client broadcast API. The domain
-layer enforces the documented allowlist of Admin topics, provides typed event
-signals, retains the latest `event_id`, and supports acknowledged
-`subscribe`/`unsubscribe`/`resume`/`ping` commands. After an unexpected
-reconnect it re-subscribes desired topics and emits
-`snapshotReconciliationRequired()`; the application loads its REST snapshot and
-then calls `requestResume()`. Replay is best-effort and reports unavailable
-history through `replayCompleted(false, reason)`. `session.revoked`,
-`auth.force_logout`, and `admin_api.disabled` invalidate the Admin session
-through `AdminClient`. See [`docs/RELAY_FOUNDATION.md`](docs/RELAY_FOUNDATION.md).
+## Authentication and token storage
 
-## Live REST client
+The SDK uses the HubSight Admin dual-auth model:
 
-`AdminClient::live()` covers the Phase 2 live REST surface:
+- `X-API-Key` is sent on bootstrap and protected requests;
+- `Authorization: Bearer <access-token>` is sent only on protected requests;
+- cookies and query-string credentials are not used.
 
-- `fetchCapabilities()` and cursor-based `listCameras()`;
-- `negotiate()`, `heartbeat()`, `release()`, and `changeProfile()`;
-- `fetchSessionStats()`, `reportQoe()`, and `fetchCameraStatus()`.
+`AdminApplicationClient` manages the complete JWT lifecycle:
 
-Responses are parsed into `LiveCapabilities`, `LiveCameraPage`, `LiveSession`,
-`LiveSessionStats`, and `LiveCameraStatus`. Negotiation remains separate from
-media: applications can use `LiveClient::sessionNegotiated` to configure the
-WebRTC peer adapter and pass the returned SDP/ICE data through the appropriate
-signaling contract.
+- username/password sign-in;
+- optional 2FA verification;
+- refresh-token rotation;
+- automatic refresh before expiration;
+- session restore after configuration;
+- logout and local session invalidation.
 
-## Archive REST client
+Storage policy:
 
-`AdminClient::archive()` implements the normative Admin archive contract:
+- access tokens are held in memory only;
+- refresh tokens are stored through `DesktopSecureStorage` by default;
+- Windows uses Credential Manager;
+- macOS uses Keychain Services;
+- Linux uses Secret Service through libsecret when available;
+- unavailable vaults fail closed with sanitized diagnostics;
+- there is no plaintext file, `QSettings`, custom registry, or custom encrypted
+  file fallback.
 
-- `fetchTimeline(from, to, cameraId, cursor, limit)` with ISO-8601 query values;
-- `fetchAvailableDays(cameraId, year, month)`;
-- `fetchRecording(recordingId)`;
-- `requestPlaybackUrl()`, `requestDownloadUrl()`, and `requestThumbnailUrl()`.
+`InMemorySecureStorage` is intended only for tests and explicitly controlled
+short-lived development processes. The advanced `AdminClient` constructor uses
+in-memory storage unless a `SecureStoragePtr` is injected; the recommended
+`AdminApplicationClient` constructor selects `DesktopSecureStorage` by default.
 
-Responses are parsed into `ArchiveTimelinePage`, `ArchiveAvailableDays`,
-`RecordingSegment`, and `ArchiveUrlResult`. The client uses
-`/api/admin/v1/archive/...` and does not substitute the sibling backend's
-legacy `/archive/:id/stream`, `/archive/:id/thumbnail`, or
-`/archive/:id/available-days` routes. A native playback pipeline, range
-seeking, caching, and media-engine integration remain later work.
+## HTTP transport
 
-## Notifications REST client
+The SDK sends Admin requests only below:
 
-`AdminClient::notifications()` implements the normative Admin notifications
-surface: cursor/filter listing, detail fetch, patch/read state, mark-all-read,
-individual/batch/clear deletion, test dispatch, push configuration, and current
-push-subscription upsert/removal.
+```text
+/api/admin/v1
+```
 
-Destructive methods require an explicit confirmation value and default to the
-contract literal `yes` when no unique target name exists. The SDK uses action
-paths such as `/notifications:read-all`, `/notifications:batch-delete`, and
-`/notifications:clear`; it does not substitute the sibling backend's legacy
-`/notifications/read-all`, `/notifications/batch`, or `/notifications/:id/read`
-routes. Push subscription payloads remain JSON objects so desktop push providers
-can supply their provider-specific fields without exposing credentials in URLs.
+For HTTPS gateways, Qt negotiates HTTP/2 through TLS ALPN when supported and
+falls back automatically to HTTP/1.1 when necessary. The SDK does not use direct
+HTTP/2 or h2c and application code does not select the protocol.
+
+Low-level integrations can observe the selected protocol through:
+
+```cpp
+QObject::connect(&adminClient, &AdminClient::requestCompleted,
+                 [](QString operation, HttpProtocol protocol) {
+                     // HttpProtocol::Http2 or HttpProtocol::Http1_1
+                 });
+```
+
+Every request receives an SDK-generated `X-Request-ID`. HTTP errors are parsed
+from the Admin error envelope, maintenance responses preserve `Retry-After`,
+and stale responses from an earlier configuration/auth generation are ignored.
+
+## Realtime transports
+
+HubSight has two intentionally separate realtime protocols.
+
+### Standard JSON relay — normative Admin realtime API
+
+The normative Admin relay is a plain JSON WebSocket at:
+
+```text
+/relay/admin/v1
+```
+
+It does **not** use Engine.IO or Socket.IO framing. The typed domain layer
+supports:
+
+- documented Admin topic allowlisting;
+- acknowledged `subscribe`, `unsubscribe`, `resume`, and `ping` commands;
+- camera, pool, NVR, member, vision, notification, operation, and security
+  events;
+- reconnect with bounded backoff;
+- topic resubscription;
+- `event_id` tracking;
+- REST snapshot reconciliation after reconnect;
+- best-effort replay reporting;
+- security events such as `session.revoked`, `auth.force_logout`, and
+  `admin_api.disabled`.
+
+Normal app code uses:
+
+```cpp
+client.realtime()->subscribeTopic(QStringLiteral("camera.updated"));
+```
+
+The application can load an authoritative REST snapshot when notified that
+reconciliation is required, then request replay through the typed relay API.
+
+### Socket.IO compatibility layer
+
+`AdminClient::realtime()` exposes the lower-level `SocketIoClient`, and
+`AdminClient::socketIoRealtime()` exposes its optional domain layer for
+compatible/legacy deployments, currently using `/relay`.
+
+The base supports:
+
+- Engine.IO v4 WebSocket handshake;
+- Socket.IO namespaces;
+- heartbeat ping/pong;
+- JSON events;
+- outbound and server-requested acknowledgements;
+- bounded reconnect and room rejoin;
+- authenticated WebSocket headers without URL credentials.
+
+Polling fallback and binary attachments are not implemented. The Socket.IO
+compatibility layer must not be pointed at `/relay/admin/v1`.
+
+## Typed REST clients
+
+The current typed clients are exposed through `AdminClient` and the application
+facade:
+
+| Client               | Current coverage                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `SystemClient`       | Status, capabilities, and settings.                                                                                                     |
+| `CameraClient`       | Cursor/limit camera list and detail/status reads.                                                                                       |
+| `LiveClient`         | Capabilities, camera discovery/status, WebRTC session negotiation, heartbeat, release, profile changes, stats, and QoE.                 |
+| `ArchiveClient`      | Timeline, available days, recording metadata, playback/download/thumbnail URL actions.                                                  |
+| `NotificationClient` | Listing/filtering, detail, read-state mutations, deletion actions, test dispatch, push configuration, and push-subscription management. |
+
+Responses use typed DTOs and emit domain-specific signals. Archive playback,
+thumbnail caching, range seeking, and media rendering are not included in the
+REST clients.
 
 ## WebRTC foundation
 
-`AdminClient::webrtc()` exposes a session registry for the Phase 2 live API.
-The foundation includes typed ICE server/configuration, SDP, ICE candidate,
-track, and connection-state models plus a `WebRtcPeerConnectionBackend`
-adapter interface. It does not bundle libdatachannel or another media engine;
-applications attach an approved backend before calling `createOffer()` or
-`createAnswer()`. Standard JSON signaling remains separate from Socket.IO and
-must not use Socket.IO packet framing. See
-[`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).
+The SDK includes a backend-neutral WebRTC foundation for live sessions:
+
+- typed ICE server/configuration models;
+- SDP and ICE candidate DTOs;
+- track and connection-state models;
+- session registry keyed by live `session_id`;
+- `WebRtcPeerConnectionBackend` adapter boundary.
+
+Qt provides network and WebSocket primitives but does not provide an
+`RTCPeerConnection` media engine. The SDK therefore does not bundle
+libdatachannel, native WebRTC, FFmpeg, hardware decoding, or rendering. An
+approved backend adapter is required before offer/answer or ICE operations can
+run; otherwise the SDK reports `BackendUnavailable` through its structured error
+and diagnostics paths.
+
+See [`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md).
+
+## Endpoint catalog and deferred endpoints
+
+`adminEndpointCatalog()` contains all 136 entries from the HubSight Admin API v1
+catalog, including method, path, authentication, permission, and target phase.
+`AdminClient::api()` exposes one forward-compatible placeholder method for each
+catalog entry.
+
+Catalog methods that have not reached a typed implementation currently emit:
+
+```text
+SDK_ENDPOINT_NOT_IMPLEMENTED
+```
+
+They deliberately do not send a network request. The catalog is therefore the
+complete planned API surface, while typed clients represent the endpoints that
+are currently implemented and validated.
+
+## Diagnostics and debugging
+
+Use `AdminApplicationClient` diagnostics instead of inspecting native network or
+WebRTC objects:
+
+```cpp
+client.setDiagnosticLoggingEnabled(true);
+
+QObject::connect(&client, &AdminApplicationClient::diagnosticOccurred,
+                 [](SdkDiagnostic diagnostic) {
+                     qInfo().noquote()
+                         << QJsonDocument(diagnostic.toJson()).toJson();
+                 });
+```
+
+Each `SdkDiagnostic` can contain:
+
+- UTC timestamp;
+- severity and source;
+- stable diagnostic code;
+- operation name;
+- request ID when available;
+- retryability;
+- safe structured details.
+
+Diagnostic history is bounded in memory. Credential values, request bodies,
+Bearer tokens, API keys, passwords, and raw sensitive response data are not
+included by default. Qt logging uses the category:
+
+```text
+hubsight.admin.sdk
+```
+
+Useful diagnostic codes include `AUTHENTICATED`, `TOKEN_REFRESHED`,
+`SECURE_STORAGE_UNAVAILABLE`, `SECURE_STORAGE_READ_FAILED`,
+`SECURE_STORAGE_WRITE_FAILED`, `RELAY_CONNECTION_FAILED`,
+`WEBRTC_BACKEND_UNAVAILABLE`, `REPLAY_UNAVAILABLE`, and
+`TOPIC_OPERATION_FAILED`.
+
+## Security and protocol boundaries
+
+The SDK deliberately enforces these boundaries:
+
+- Admin REST uses `/api/admin/v1`, never the legacy App API namespace;
+- Standard Admin realtime uses plain JSON WebSocket at `/relay/admin/v1`;
+- Socket.IO is only a separate compatibility transport;
+- WebRTC signaling/media is not tunneled through Socket.IO;
+- credentials are not placed in URLs or query strings;
+- cookies and ambient browser credentials are disabled;
+- refresh tokens are not written to plaintext application settings;
+- `.hscfg` decrypted contents are not persisted by the importer.
+
+## Tests
+
+The contract-oriented Qt Test suite uses local HTTP/1.1 and WebSocket servers to
+verify:
+
+- Admin URL namespace and dual-auth headers;
+- HTTP/1.1 protocol reporting and HTTP/2 negotiation configuration;
+- JWT rotation, persisted-session restore, and fail-closed storage;
+- secure-storage round-trip behavior where the desktop vault is available;
+- `.hscfg` validation and single-source endpoint configuration;
+- Standard relay topic, reconnect, replay, and security behavior;
+- Socket.IO handshake, heartbeat, events, acknowledgements, and security events;
+- typed live, archive, notification, and WebRTC foundation behavior;
+- application-facade diagnostics and transport ownership;
+- complete endpoint catalog/stub behavior;
+- maintenance responses and retry metadata.
+
+Run the suite with:
+
+```sh
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+A full live HTTP/2 integration test requires a TLS test server with ALPN
+support. The production path uses Qt's native HTTP/2 negotiation and does not
+require a separate direct/h2c mode.
+
+## Documentation
+
+- [`docs/BUILD_CROSS_PLATFORM.md`](docs/BUILD_CROSS_PLATFORM.md) — Windows 10/11
+  amd64/ARM64, Linux amd64/ARM64, and macOS arm64 build and deployment guide.
+- [`docs/PHASE1.md`](docs/PHASE1.md) — delivered REST, auth, realtime, facade,
+  diagnostics, and foundation work.
+- [`docs/HSCFG_IMPORT.md`](docs/HSCFG_IMPORT.md) — Admin `.hscfg` v2 format,
+  dependencies, validation, and integrity policy.
+- [`docs/RELAY_FOUNDATION.md`](docs/RELAY_FOUNDATION.md) — normative Standard
+  JSON relay contract and replay/reconciliation behavior.
+- [`docs/WEBRTC_FOUNDATION.md`](docs/WEBRTC_FOUNDATION.md) — backend-neutral
+  WebRTC adapter boundary.
+
+The source contract is maintained in the HubSight repository documents
+referenced by `docs/PHASE1.md`.
